@@ -1,0 +1,22 @@
+{
+  "name": "ovi-api",
+  "version": "1.0.0",
+  "description": "Koa2 REST API scaffold",
+  "main": "app.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@koa/cors": "^5.0.0",
+    "@koa/router": "^13.1.0",
+    "dotenv": "^16.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "koa": "^2.15.3",
+    "koa-body": "^6.0.1",
+    "mysql2": "^3.20.0"
+  }
+}
