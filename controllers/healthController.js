@@ -4,13 +4,17 @@ async function health(ctx) {
   const free = os.freemem();
   const total = os.totalmem();
 
+  ctx.status = 200;
   ctx.body = {
-    status: "ok",
-    time: new Date().toISOString(),
-    memory: {
-      free,
-      total,
-      ratioFree: total > 0 ? free / total : null
+    success: true,
+    data: {
+      status: "ok",
+      time: new Date().toISOString(),
+      memory: {
+        free,
+        total,
+        ratioFree: total > 0 ? free / total : null
+      }
     }
   };
 }

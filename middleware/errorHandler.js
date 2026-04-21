@@ -9,26 +9,31 @@ function errorHandler() {
       await next();
 
       if (ctx.status === 404 && !ctx.body) {
-        ctx.throw(404, "Not Found");
+        ctx.status = 200;
+        ctx.type = "application/json";
+        ctx.body = {
+          success: false,
+          data: null,
+          error: {
+            code: "NOT_FOUND",
+            message: "Not Found"
+          }
+        };
       }
     } catch (err) {
-      const status = Number.isInteger(err.status) ? err.status : 500;
-
-      ctx.status = status;
+      ctx.status = 200;
       ctx.type = "application/json";
       ctx.body = {
         success: false,
-        requestId,
-        timestamp: new Date().toISOString(),
+        data: null,
         error: {
-          message: status >= 500 ? "Internal Server Error" : err.message,
-          code: err.code || err.name || "Error"
+          code: err.code || err.name || "INTERNAL_ERROR",
+          message: err && err.message ? err.message : "Internal Server Error",
+          details: err && err.details !== undefined ? err.details : undefined
         }
       };
 
-      if (status >= 500) {
-        ctx.app.emit("error", err, ctx);
-      }
+      ctx.app.emit("error", err, ctx);
     }
   };
 }
