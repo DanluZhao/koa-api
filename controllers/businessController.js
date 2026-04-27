@@ -815,6 +815,164 @@ async function getSystemAvatars(ctx) {
   apiOk(ctx, urls, buildPagination({ total: totalRes.data.total, limit, offset }));
 }
 
+async function getSystemLiquidsettingsGap(ctx) {
+  const listRes = await queryAll(
+    "SELECT id, name, type, gap, total FROM sys_liquidsetting WHERE type = 'gap' ORDER BY updateTime DESC, createTime DESC",
+    []
+  );
+  if (!listRes.success) {
+    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
+    return;
+  }
+
+  apiOk(ctx, listRes.data);
+}
+
+async function getSystemLiquidsettingsTotal(ctx) {
+  const listRes = await queryAll(
+    "SELECT id, name, type, gap, total FROM sys_liquidsetting WHERE type = 'total' ORDER BY updateTime DESC, createTime DESC",
+    []
+  );
+  if (!listRes.success) {
+    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
+    return;
+  }
+
+  apiOk(ctx, listRes.data);
+}
+
+async function getUsersMeLiquidsetting(ctx) {
+  const auth = requireUser(ctx);
+  if (!auth.ok) {
+    apiFail(ctx, auth.error.code, auth.error.message);
+    return;
+  }
+
+  const rowRes = await queryOne(
+    `SELECT 
+      u.id AS userLiquidsettingId,
+      u.userid,
+      u.liquidsettingId,
+      u.createTime,
+      u.updateTime,
+      s.id AS sysId,
+      s.name AS sysName,
+      s.type AS sysType,
+      s.gap AS sysGap,
+      s.total AS sysTotal
+    FROM user_liquidsetting u
+    INNER JOIN sys_liquidsetting s ON s.id = u.liquidsettingId
+    WHERE u.userid = ?
+    ORDER BY u.updateTime DESC, u.createTime DESC
+    LIMIT 1`,
+    [auth.userId]
+  );
+  if (!rowRes.success) {
+    apiFail(ctx, "DB_ERROR", rowRes.error, rowRes.code ? { code: rowRes.code } : undefined);
+    return;
+  }
+  if (!rowRes.data) {
+    apiOk(ctx, null);
+    return;
+  }
+
+  apiOk(ctx, {
+    id: rowRes.data.userLiquidsettingId,
+    userid: rowRes.data.userid,
+    liquidsettingId: rowRes.data.liquidsettingId,
+    system: { id: rowRes.data.sysId, name: rowRes.data.sysName, type: rowRes.data.sysType, gap: rowRes.data.sysGap, total: rowRes.data.sysTotal }
+  });
+}
+
+async function postUsersMeLiquidsetting(ctx) {
+  const auth = requireUser(ctx);
+  if (!auth.ok) {
+    apiFail(ctx, auth.error.code, auth.error.message);
+    return;
+  }
+
+  const liquidsettingId = String(ctx.request.body?.liquidsettingId || "").trim();
+  if (!liquidsettingId) {
+    apiFail(ctx, "INVALID_PARAM", "liquidsettingId is required");
+    return;
+  }
+
+  const sysRes = await queryOne("SELECT id, name, type, gap, total FROM sys_liquidsetting WHERE id = ? LIMIT 1", [liquidsettingId]);
+  if (!sysRes.success) {
+    apiFail(ctx, "DB_ERROR", sysRes.error, sysRes.code ? { code: sysRes.code } : undefined);
+    return;
+  }
+  if (!sysRes.data) {
+    apiFail(ctx, "NOT_FOUND", "System liquidsetting not found");
+    return;
+  }
+
+  const existingRes = await queryOne("SELECT id FROM user_liquidsetting WHERE userid = ? ORDER BY updateTime DESC LIMIT 1", [
+    auth.userId
+  ]);
+  if (!existingRes.success) {
+    apiFail(ctx, "DB_ERROR", existingRes.error, existingRes.code ? { code: existingRes.code } : undefined);
+    return;
+  }
+
+  if (!existingRes.data) {
+    const id = crypto.randomUUID();
+    const inserted = await exec(
+      "INSERT INTO user_liquidsetting (id, liquidsettingId, userid, createTime, updateTime) VALUES (?, ?, ?, NOW(), NOW())",
+      [id, liquidsettingId, auth.userId]
+    );
+    if (!inserted.success) {
+      apiFail(ctx, "DB_ERROR", inserted.error, inserted.code ? { code: inserted.code } : undefined);
+      return;
+    }
+  } else {
+    const updated = await exec("UPDATE user_liquidsetting SET liquidsettingId = ?, updateTime = NOW() WHERE userid = ?", [
+      liquidsettingId,
+      auth.userId
+    ]);
+    if (!updated.success) {
+      apiFail(ctx, "DB_ERROR", updated.error, updated.code ? { code: updated.code } : undefined);
+      return;
+    }
+  }
+
+  const rowRes = await queryOne(
+    `SELECT 
+      u.id AS userLiquidsettingId,
+      u.userid,
+      u.liquidsettingId,
+      u.createTime,
+      u.updateTime,
+      s.id AS sysId,
+      s.name AS sysName,
+      s.type AS sysType,
+      s.gap AS sysGap,
+      s.total AS sysTotal
+    FROM user_liquidsetting u
+    INNER JOIN sys_liquidsetting s ON s.id = u.liquidsettingId
+    WHERE u.userid = ?
+    ORDER BY u.updateTime DESC, u.createTime DESC
+    LIMIT 1`,
+    [auth.userId]
+  );
+  if (!rowRes.success) {
+    apiFail(ctx, "DB_ERROR", rowRes.error, rowRes.code ? { code: rowRes.code } : undefined);
+    return;
+  }
+
+  apiOk(
+    ctx,
+    rowRes.data
+      ? {
+          id: rowRes.data.userLiquidsettingId,
+          userid: rowRes.data.userid,
+          liquidsettingId: rowRes.data.liquidsettingId,
+          system: { id: rowRes.data.sysId, name: rowRes.data.sysName, type: rowRes.data.sysType, gap: rowRes.data.sysGap, total: rowRes.data.sysTotal }
+        }
+      : null
+  );
+}
+
 async function appGetSystemNicknames(ctx) {
   const { limit, offset } = parseLimitOffset(ctx.query, { limit: 200 });
   const totalRes = await queryOne("SELECT COUNT(*) AS total FROM sys_nickname WHERE isEnable = 1", []);
@@ -1743,6 +1901,10 @@ module.exports = {
   getUsersMe,
   patchUsersMe,
   getSystemAvatars,
+  getSystemLiquidsettingsGap,
+  getSystemLiquidsettingsTotal,
+  getUsersMeLiquidsetting,
+  postUsersMeLiquidsetting,
   appGetSystemNicknames,
   getArticles,
   getArticleById,

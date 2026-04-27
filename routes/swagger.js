@@ -578,6 +578,50 @@ function buildOpenApi(serverUrl) {
           }
         }
       },
+      "/app/users/me/liquidsetting": {
+        get: {
+          summary: "Get current user's liquidsetting (user_liquidsetting + sys_liquidsetting)",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        },
+        post: {
+          summary: "Set current user's liquidsetting (upsert user_liquidsetting)",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    liquidsettingId: { type: "string", description: "sys_liquidsetting.id" }
+                  },
+                  required: ["liquidsettingId"]
+                }
+              }
+            }
+          },
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
       "/app/system/avatars": {
         get: {
           summary: "Get system avatar urls (sys_profilephoto) - public",
@@ -612,6 +656,36 @@ function buildOpenApi(serverUrl) {
             { name: "limit", in: "query", required: false, schema: { type: "integer", default: 200 } },
             { name: "offset", in: "query", required: false, schema: { type: "integer", default: 0 } }
           ],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/app/system/liquidsettings/gap": {
+        get: {
+          summary: "List system liquidsettings (type=gap) - public",
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/app/system/liquidsettings/total": {
+        get: {
+          summary: "List system liquidsettings (type=total) - public",
           responses: {
             200: {
               description: "OK",

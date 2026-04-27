@@ -69,10 +69,14 @@ appRouter.post("/auth/login/jiguang", business.authLoginJiguang);
 appRouter.post("/auth/register/jiguang/complete", business.authRegisterJiguangComplete);
 appRouter.get("/system/nicknames", business.appGetSystemNicknames);
 appRouter.get("/system/avatars", business.getSystemAvatars);
+appRouter.get("/system/liquidsettings/gap", business.getSystemLiquidsettingsGap);
+appRouter.get("/system/liquidsettings/total", business.getSystemLiquidsettingsTotal);
 appRouter.use(authRequired({ type: "user" }));
 
 appRouter.get("/users/me", business.getUsersMe);
 appRouter.patch("/users/me", business.patchUsersMe);
+appRouter.get("/users/me/liquidsetting", business.getUsersMeLiquidsetting);
+appRouter.post("/users/me/liquidsetting", business.postUsersMeLiquidsetting);
 
 appRouter.get("/articles", business.getArticles);
 appRouter.get("/articles/search", business.searchArticles);
