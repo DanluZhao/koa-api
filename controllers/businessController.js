@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const forge = require("node-forge");
 const db = require("../db");
 const { loadSchemasFromDatabase } = require("../models/schema");
+const { resolveBleDeviceProfile } = require("../services/bleDeviceProfileService");
 
 function apiOk(ctx, data, pagination) {
   ctx.status = 200;
@@ -813,6 +814,35 @@ async function getSystemAvatars(ctx) {
     .filter(Boolean);
 
   apiOk(ctx, urls, buildPagination({ total: totalRes.data.total, limit, offset }));
+}
+
+async function appResolveBleDeviceProfile(ctx) {
+  const raw = ctx.query?.bleName;
+  const bleName = raw === undefined || raw === null ? "" : String(raw).trim();
+  if (!bleName) {
+    ctx.status = 200;
+    ctx.body = { success: false, data: null, error: { code: "BAD_REQUEST", message: "bleName is required" } };
+    return;
+  }
+  if (bleName.length > 64) {
+    ctx.status = 200;
+    ctx.body = { success: false, data: null, error: { code: "BAD_REQUEST", message: "bleName is too long" } };
+    return;
+  }
+
+  try {
+    const resolved = await resolveBleDeviceProfile({ bleName });
+    if (!resolved.ok) {
+      ctx.status = 200;
+      ctx.body = { success: false, data: null, error: { code: resolved.code, message: resolved.message } };
+      return;
+    }
+    ctx.status = 200;
+    ctx.body = { success: true, data: resolved.data, error: null };
+  } catch (err) {
+    ctx.status = 200;
+    ctx.body = { success: false, data: null, error: { code: "INTERNAL_ERROR", message: err?.message || String(err) } };
+  }
 }
 
 async function getSystemLiquidsettingsGap(ctx) {
@@ -1901,6 +1931,7 @@ module.exports = {
   getUsersMe,
   patchUsersMe,
   getSystemAvatars,
+  appResolveBleDeviceProfile,
   getSystemLiquidsettingsGap,
   getSystemLiquidsettingsTotal,
   getUsersMeLiquidsetting,

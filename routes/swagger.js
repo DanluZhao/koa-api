@@ -698,6 +698,22 @@ function buildOpenApi(serverUrl) {
           }
         }
       },
+      "/app/system/ble-device-profiles/resolve": {
+        get: {
+          summary: "Resolve BLE device profile by bleName (device profile cache)",
+          parameters: [{ name: "bleName", in: "query", required: true, schema: { type: "string", maxLength: 64 } }],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
       "/app/articles": {
         get: {
           summary: "List published articles",

@@ -71,6 +71,7 @@ appRouter.get("/system/nicknames", business.appGetSystemNicknames);
 appRouter.get("/system/avatars", business.getSystemAvatars);
 appRouter.get("/system/liquidsettings/gap", business.getSystemLiquidsettingsGap);
 appRouter.get("/system/liquidsettings/total", business.getSystemLiquidsettingsTotal);
+appRouter.get("/system/ble-device-profiles/resolve", business.appResolveBleDeviceProfile);
 appRouter.use(authRequired({ type: "user" }));
 
 appRouter.get("/users/me", business.getUsersMe);
