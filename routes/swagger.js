@@ -1023,12 +1023,29 @@ function buildOpenApi(serverUrl) {
       },
       "/app/waveforms/preset": {
         get: {
-          summary: "List preset waveforms",
+          summary: "List preset waveforms (playable sequence included)",
           security: [{ bearerAuth: [] }],
           parameters: [
             { name: "limit", in: "query", required: false, schema: { type: "integer", default: 200 } },
             { name: "offset", in: "query", required: false, schema: { type: "integer", default: 0 } }
           ],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/app/mode-explore": {
+        get: {
+          summary: "Mode explore (categories + waveforms + playable sequence)",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "includeUnpublished", in: "query", required: false, schema: { type: "integer", enum: [0, 1], default: 0 } }],
           responses: {
             200: {
               description: "OK",

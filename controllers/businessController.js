@@ -4,12 +4,14 @@ const forge = require("node-forge");
 const db = require("../db");
 const { loadSchemasFromDatabase } = require("../models/schema");
 const { resolveBleDeviceProfile } = require("../services/bleDeviceProfileService");
+const { listPresetWaveforms, getModeExplore } = require("../services/modeExploreService");
 
 function apiOk(ctx, data, pagination) {
   ctx.status = 200;
   ctx.body = {
     success: true,
     data,
+    error: null,
     pagination: pagination || undefined
   };
 }
@@ -1599,26 +1601,31 @@ async function postAchievementsAward(ctx) {
 
 async function getWaveformsPreset(ctx) {
   const { limit, offset } = parseLimitOffset(ctx.query, { limit: 200 });
-  const totalRes = await queryOne("SELECT COUNT(*) AS total FROM waveforms WHERE isPublished = 1", []);
-  if (!totalRes.success) {
-    apiFail(ctx, "DB_ERROR", totalRes.error, totalRes.code ? { code: totalRes.code } : undefined);
+  try {
+    const res = await listPresetWaveforms({ limit, offset });
+    apiOk(ctx, res.items, buildPagination({ total: res.total, limit, offset }));
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
+  }
+}
+
+async function appGetModeExplore(ctx) {
+  const auth = requireUser(ctx);
+  if (!auth.ok) {
+    apiFail(ctx, auth.error.code, auth.error.message);
     return;
   }
 
-  const listRes = await queryAll(
-    "SELECT * FROM waveforms WHERE isPublished = 1 ORDER BY createTime DESC LIMIT ? OFFSET ?",
-    [limit, offset]
-  );
-  if (!listRes.success) {
-    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
-    return;
-  }
+  const includeUnpublishedRaw = ctx.query?.includeUnpublished;
+  const includeUnpublished =
+    includeUnpublishedRaw === "1" || includeUnpublishedRaw === 1 || includeUnpublishedRaw === true || String(includeUnpublishedRaw || "").toLowerCase() === "true";
 
-  apiOk(
-    ctx,
-    listRes.data.map((r) => ({ ...r, _id: r.id })),
-    buildPagination({ total: totalRes.data.total, limit, offset })
-  );
+  try {
+    const data = await getModeExplore({ includeUnpublished });
+    apiOk(ctx, { categories: data.categories });
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
+  }
 }
 
 async function getWaveformsCustom(ctx) {
@@ -1957,6 +1964,7 @@ module.exports = {
   postWaveformsCustom,
   patchWaveformsCustomById,
   deleteWaveformsCustomById,
+  appGetModeExplore,
   adminListSystemNicknames,
   adminToggleSystemNicknameEnable,
   adminCreateSystemNickname,

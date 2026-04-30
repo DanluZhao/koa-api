@@ -107,6 +107,8 @@ appRouter.post("/waveforms/custom", business.postWaveformsCustom);
 appRouter.patch("/waveforms/custom/:id", business.patchWaveformsCustomById);
 appRouter.delete("/waveforms/custom/:id", business.deleteWaveformsCustomById);
 
+appRouter.get("/mode-explore", business.appGetModeExplore);
+
 module.exports = {
   legacyRouter,
   adminRouter,
