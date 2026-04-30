@@ -5,6 +5,7 @@ const db = require("../db");
 const { loadSchemasFromDatabase } = require("../models/schema");
 const { resolveBleDeviceProfile } = require("../services/bleDeviceProfileService");
 const { listPresetWaveforms, getModeExplore } = require("../services/modeExploreService");
+const { createWaveformCustom, updateWaveformCustom, listWaveformsCustom } = require("../services/waveformsCustomService");
 
 function apiOk(ctx, data, pagination) {
   ctx.status = 200;
@@ -1636,26 +1637,12 @@ async function getWaveformsCustom(ctx) {
   }
 
   const { limit, offset } = parseLimitOffset(ctx.query, { limit: 200 });
-  const totalRes = await queryOne("SELECT COUNT(*) AS total FROM waveforms_custom WHERE userid = ?", [auth.userId]);
-  if (!totalRes.success) {
-    apiFail(ctx, "DB_ERROR", totalRes.error, totalRes.code ? { code: totalRes.code } : undefined);
-    return;
+  try {
+    const res = await listWaveformsCustom({ userId: auth.userId, limit, offset });
+    apiOk(ctx, res.items, buildPagination({ total: res.total, limit, offset }));
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-
-  const listRes = await queryAll(
-    "SELECT * FROM waveforms_custom WHERE userid = ? ORDER BY updateTime DESC LIMIT ? OFFSET ?",
-    [auth.userId, limit, offset]
-  );
-  if (!listRes.success) {
-    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
-    return;
-  }
-
-  apiOk(
-    ctx,
-    listRes.data.map((r) => ({ ...r, _id: r.id })),
-    buildPagination({ total: totalRes.data.total, limit, offset })
-  );
 }
 
 async function postWaveformsCustom(ctx) {
@@ -1665,24 +1652,29 @@ async function postWaveformsCustom(ctx) {
     return;
   }
 
-  const { name, sequence } = ctx.request.body || {};
+  const body = ctx.request.body || {};
+  const name = String(body.name || "").trim();
+  const sequence = body.sequence;
   if (!name || sequence === undefined) {
     apiFail(ctx, "INVALID_PARAM", "name and sequence are required");
     return;
   }
 
-  const id = crypto.randomUUID();
-  const seq = typeof sequence === "string" ? sequence : JSON.stringify(sequence);
-  const inserted = await exec(
-    "INSERT INTO waveforms_custom (id, name, sequence, userid, isPublished, createTime, updateTime) VALUES (?, ?, ?, ?, 1, NOW(), NOW())",
-    [id, name, seq, auth.userId]
-  );
-  if (!inserted.success) {
-    apiFail(ctx, "DB_ERROR", inserted.error, inserted.code ? { code: inserted.code } : undefined);
-    return;
+  try {
+    const created = await createWaveformCustom({
+      userId: auth.userId,
+      name,
+      sequence,
+      tickMs: body.tickMs,
+      supportedChannelKeys: body.supportedChannelKeys,
+      playPolicy: body.playPolicy,
+      minOutputCount: body.minOutputCount,
+      sequenceVersion: body.sequenceVersion
+    });
+    apiOk(ctx, created);
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-
-  apiOk(ctx, id);
 }
 
 async function patchWaveformsCustomById(ctx) {
@@ -1698,42 +1690,39 @@ async function patchWaveformsCustomById(ctx) {
     return;
   }
 
-  const payload = ctx.request.body || {};
-  const allowed = ["name", "sequence", "isPublished"];
-  const keys = Object.keys(payload).filter((k) => allowed.includes(k) && payload[k] !== undefined);
-  if (keys.length === 0) {
+  const patch = ctx.request.body || {};
+  if (!patch || typeof patch !== "object") {
+    apiFail(ctx, "INVALID_PARAM", "Invalid body");
+    return;
+  }
+
+  if (
+    patch.name === undefined &&
+    patch.sequence === undefined &&
+    patch.tickMs === undefined &&
+    patch.sequenceVersion === undefined &&
+    patch.supportedChannelKeys === undefined &&
+    patch.playPolicy === undefined &&
+    patch.minOutputCount === undefined
+  ) {
     apiFail(ctx, "INVALID_PARAM", "No valid fields to update");
     return;
   }
 
-  const setParts = [];
-  const values = [];
-  for (const k of keys) {
-    if (k === "sequence") {
-      const seq = typeof payload.sequence === "string" ? payload.sequence : JSON.stringify(payload.sequence);
-      setParts.push("`sequence` = ?");
-      values.push(seq);
-      continue;
+  try {
+    const res = await updateWaveformCustom({ userId: auth.userId, id, patch });
+    if (res.notFound) {
+      apiFail(ctx, "NOT_FOUND", "Document not found");
+      return;
     }
-    setParts.push(`\`${k}\` = ?`);
-    values.push(payload[k]);
+    if (res.notModified) {
+      apiOk(ctx, null);
+      return;
+    }
+    apiOk(ctx, res.data);
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-  setParts.push("`updateTime` = NOW()");
-
-  values.push(id, auth.userId);
-  const updated = await exec(`UPDATE waveforms_custom SET ${setParts.join(", ")} WHERE id = ? AND userid = ?`, values);
-  if (!updated.success) {
-    apiFail(ctx, "DB_ERROR", updated.error, updated.code ? { code: updated.code } : undefined);
-    return;
-  }
-
-  const affected = Number(updated.data?.affectedRows || 0);
-  if (affected === 0) {
-    apiFail(ctx, "NOT_FOUND", "Document not found");
-    return;
-  }
-
-  apiOk(ctx, affected);
 }
 
 async function deleteWaveformsCustomById(ctx) {

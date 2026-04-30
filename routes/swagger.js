@@ -1060,7 +1060,7 @@ function buildOpenApi(serverUrl) {
       },
       "/app/waveforms/custom": {
         get: {
-          summary: "List current user custom waveforms",
+          summary: "List current user custom waveforms (playable sequence v1)",
           security: [{ bearerAuth: [] }],
           parameters: [
             { name: "limit", in: "query", required: false, schema: { type: "integer", default: 200 } },
@@ -1078,7 +1078,7 @@ function buildOpenApi(serverUrl) {
           }
         },
         post: {
-          summary: "Create custom waveform",
+          summary: "Create custom waveform (accept legacy array or v1 object; returns playable v1)",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -1088,7 +1088,14 @@ function buildOpenApi(serverUrl) {
                   type: "object",
                   properties: {
                     name: { type: "string" },
-                    sequence: { nullable: false }
+                    sequence: {
+                      oneOf: [{ type: "array", items: { type: "number" } }, { type: "object", additionalProperties: true }]
+                    },
+                    tickMs: { type: "integer" },
+                    sequenceVersion: { type: "integer" },
+                    supportedChannelKeys: { type: "array", items: { type: "string" } },
+                    playPolicy: { type: "string", enum: ["ACTIVE_ONLY", "BOTH"] },
+                    minOutputCount: { type: "integer" }
                   },
                   required: ["name", "sequence"]
                 }
@@ -1109,14 +1116,28 @@ function buildOpenApi(serverUrl) {
       },
       "/app/waveforms/custom/{id}": {
         patch: {
-          summary: "Update custom waveform",
+          summary: "Update custom waveform (accept legacy array or v1 object; returns playable v1)",
           security: [{ bearerAuth: [] }],
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           requestBody: {
             required: true,
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AnyObject" }
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    sequence: {
+                      oneOf: [{ type: "array", items: { type: "number" } }, { type: "object", additionalProperties: true }],
+                      nullable: true
+                    },
+                    tickMs: { type: "integer" },
+                    sequenceVersion: { type: "integer" },
+                    supportedChannelKeys: { type: "array", items: { type: "string" } },
+                    playPolicy: { type: "string", enum: ["ACTIVE_ONLY", "BOTH"] },
+                    minOutputCount: { type: "integer" }
+                  }
+                }
               }
             }
           },
