@@ -21,6 +21,8 @@ test("resolveBleDeviceProfile: LY416 hits EXACT", async () => {
     [
       {
         id: 123,
+        device_name: "LY416",
+        device_image: "https://x/ly416.png",
         match_type: "BLE_NAME_EXACT",
         match_value: "LY416",
         ui_mode_count: 2,
@@ -44,6 +46,8 @@ test("resolveBleDeviceProfile: LY416 hits EXACT", async () => {
     assert.equal(res.data.profileId, 123);
     assert.deepEqual(res.data.match, { type: "BLE_NAME_EXACT", value: "LY416" });
     assert.equal(res.data.bleName, "LY416");
+    assert.equal(res.data.device_name, "LY416");
+    assert.equal(res.data.device_image, "https://x/ly416.png");
     assert.equal(res.data.ui.uiModeCount, 2);
     assert.equal(res.data.ui.channels.length, 2);
   } finally {
@@ -57,6 +61,8 @@ test("resolveBleDeviceProfile: LY999 hits PREFIX fallback", async () => {
     [
       {
         id: 9,
+        device_name: "LY Series",
+        device_image: null,
         match_type: "BLE_NAME_PREFIX",
         match_value: "LY",
         ui_mode_count: 1,
@@ -89,4 +95,3 @@ test("appResolveBleDeviceProfile: empty bleName -> BAD_REQUEST", async () => {
   assert.equal(ctx.body.success, false);
   assert.equal(ctx.body.error.code, "BAD_REQUEST");
 });
-

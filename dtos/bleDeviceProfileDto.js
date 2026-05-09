@@ -38,6 +38,8 @@ function buildBleDeviceProfileDto({ bleName, profileRow, channelRows }) {
     profileId: Number(profileRow.id),
     match: { type: profileRow.match_type, value: profileRow.match_value },
     bleName,
+    device_name: profileRow.device_name || null,
+    device_image: profileRow.device_image || null,
     ui: {
       uiModeCount: Number(profileRow.ui_mode_count),
       defaultActiveFunction: profileRow.default_active_function || null,
@@ -61,4 +63,3 @@ function buildBleDeviceProfileDto({ bleName, profileRow, channelRows }) {
 module.exports = {
   buildBleDeviceProfileDto
 };
-

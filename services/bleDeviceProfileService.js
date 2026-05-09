@@ -16,6 +16,8 @@ async function resolveBleDeviceProfile({ bleName, query = db.query }) {
     query,
     `SELECT 
       id,
+      device_name,
+      device_image,
       match_type,
       match_value,
       ui_mode_count,
@@ -70,4 +72,3 @@ async function resolveBleDeviceProfile({ bleName, query = db.query }) {
 module.exports = {
   resolveBleDeviceProfile
 };
-
