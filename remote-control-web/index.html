@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>远程遥控</title>
+    <style>
+      :root {
+        --bg: #0b0c10;
+        --card: rgba(255, 255, 255, 0.08);
+        --card2: rgba(255, 255, 255, 0.12);
+        --border: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.68);
+        --accent: #8b9a7a;
+        --accent2: #667b54;
+        --danger: #ff5a5f;
+      }
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        margin: 0;
+        background: radial-gradient(1200px 700px at 50% -10%, rgba(139, 154, 122, 0.35), transparent 60%),
+          radial-gradient(900px 500px at 20% 10%, rgba(102, 123, 84, 0.26), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB',
+          'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+      }
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 16px 14px 28px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px 8px 10px;
+        position: sticky;
+        top: 0;
+        background: linear-gradient(to bottom, rgba(11, 12, 16, 0.92), rgba(11, 12, 16, 0.60), rgba(11, 12, 16, 0));
+        backdrop-filter: blur(10px);
+        z-index: 10;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 1px;
+      }
+      .sub {
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 6px;
+        margin-bottom: 14px;
+      }
+      .tabs {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .tab {
+        flex: 1;
+        padding: 11px 10px;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        user-select: none;
+      }
+      .tab.active {
+        color: var(--text);
+        background: linear-gradient(135deg, rgba(102, 123, 84, 0.36), rgba(139, 154, 122, 0.24));
+      }
+      .panel {
+        margin-top: 14px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+      }
+      .col {
+        flex: 1;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+        margin: 0 0 10px 0;
+      }
+      .btn {
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.10);
+        color: var(--text);
+        padding: 12px 12px;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 14px;
+        user-select: none;
+        text-align: center;
+      }
+      .btn.primary {
+        background: linear-gradient(135deg, rgba(102, 123, 84, 0.75), rgba(139, 154, 122, 0.45));
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+      .btn.danger {
+        background: rgba(255, 90, 95, 0.18);
+        border-color: rgba(255, 90, 95, 0.32);
+      }
+      .btn:active {
+        transform: scale(0.99);
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.78);
+        min-height: 18px;
+        word-break: break-all;
+      }
+      .sliderWrap {
+        margin-top: 14px;
+        display: flex;
+        gap: 14px;
+        align-items: stretch;
+      }
+      .slider {
+        flex: 1;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        position: relative;
+        height: 340px;
+        touch-action: none;
+        overflow: hidden;
+      }
+      .sliderTrack {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 0%;
+        background: linear-gradient(180deg, rgba(139, 154, 122, 0.00), rgba(139, 154, 122, 0.32), rgba(102, 123, 84, 0.55));
+      }
+      .sliderKnob {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        height: 54px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        transform: translateY(0);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+      }
+      .sliderMeta {
+        width: 94px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .pill {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 10px 10px;
+        text-align: center;
+      }
+      .pill .label {
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .pill .value {
+        font-size: 16px;
+        font-weight: 800;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .card {
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        padding: 12px;
+        user-select: none;
+      }
+      .card.active {
+        border-color: rgba(139, 154, 122, 0.70);
+        background: rgba(139, 154, 122, 0.12);
+      }
+      .cardTitle {
+        font-size: 14px;
+        font-weight: 800;
+        margin-bottom: 8px;
+      }
+      .cardHint {
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.4;
+        min-height: 32px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .toolbar .btn {
+        flex: 1;
+      }
+      .foot {
+        margin-top: 16px;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.58);
+        line-height: 1.5;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>远程遥控</h1>
+    </div>
+    <div class="wrap">
+      <div class="sub">请确保玩具所在手机已进入“接收端”并连接玩具</div>
+      <div class="tabs" role="tablist">
+        <div class="tab active" role="tab" data-tab="swipe">滑屏使用</div>
+        <div class="tab" role="tab" data-tab="single">模式探索</div>
+      </div>
+
+      <div class="panel" id="panel-swipe">
+        <p class="hint">按住滑块上下滑动即可控制强度。松手将自动停止。</p>
+        <div class="sliderWrap">
+          <div class="slider" id="slider">
+            <div class="sliderTrack" id="sliderTrack"></div>
+            <div class="sliderKnob" id="sliderKnob">0%</div>
+          </div>
+          <div class="sliderMeta">
+            <div class="pill">
+              <div class="label">强度</div>
+              <div class="value" id="strengthValue">0%</div>
+            </div>
+            <div class="btn danger" id="btnStop">停止</div>
+          </div>
+        </div>
+        <div class="status mono" id="statusSwipe"></div>
+      </div>
+
+      <div class="panel" id="panel-single" style="display: none">
+        <p class="hint">点击选择单次模式，然后点击“开始”。该页面会持续下发控制指令到分享端。</p>
+        <div class="grid" id="modeGrid"></div>
+        <div class="toolbar">
+          <div class="btn primary" id="btnPlay">开始</div>
+          <div class="btn danger" id="btnStopPlay">停止</div>
+        </div>
+        <div class="status mono" id="statusSingle"></div>
+        <div class="foot">
+          说明：当前模式探索为网页端版本，基于强度指令实现联动；若你们的中转服务支持更高阶指令，可在后续升级为服务端下发“播放波形”指令。
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        function parseQuery(qs) {
+          var q = {};
+          if (!qs) return q;
+          var s = qs.replace(/^\?/, '');
+          if (!s) return q;
+          s.split('&').forEach(function (pair) {
+            var idx = pair.indexOf('=');
+            var k = idx >= 0 ? pair.slice(0, idx) : pair;
+            var v = idx >= 0 ? pair.slice(idx + 1) : '';
+            try {
+              q[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' '));
+            } catch (e) {
+              q[k] = v;
+            }
+          });
+          return q;
+        }
+
+        function uuid() {
+          var d = Date.now();
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = ((d + Math.random() * 16) % 16) | 0;
+            d = Math.floor(d / 16);
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          });
+        }
+
+        var locationHref = String(window.location.href || '');
+        var u = new URL(locationHref);
+        var query = parseQuery(u.search);
+        var token = String(query.token || '').trim();
+        var baseURL = String(query.baseURL || u.origin || '').trim().replace(/\/+$/, '');
+
+        var path = u.pathname || '/';
+        var parts = path.split('/').filter(Boolean);
+        var sessionId = '';
+        if (parts[0] === 'remote-control' && parts[1]) {
+          sessionId = decodeURIComponent(parts[1]);
+        } else {
+          sessionId = String(query.sessionId || '').trim();
+        }
+
+        function setStatus(el, text) {
+          if (!el) return;
+          el.textContent = text;
+        }
+
+        function buildCommandCandidates() {
+          var encodedSession = encodeURIComponent(sessionId);
+          return [
+            {
+              url: baseURL + '/api/remote-control/' + encodedSession + '/commands',
+              body: function (cmd) {
+                return JSON.stringify(cmd);
+              },
+            },
+            {
+              url: baseURL + '/api/remote-control/sessions/' + encodedSession + '/commands',
+              body: function (cmd) {
+                return JSON.stringify(cmd);
+              },
+            },
+            {
+              url: baseURL + '/api/remote-control/commands',
+              body: function (cmd) {
+                var withSession = Object.assign({ sessionId: sessionId }, cmd);
+                return JSON.stringify(withSession);
+              },
+            },
+          ];
+        }
+
+        function postJson(url, body) {
+          return fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-Remote-Control-Token': token,
+            },
+            body: body,
+          }).then(function (res) {
+            return res
+              .text()
+              .then(function (t) {
+                var json = null;
+                try {
+                  json = t ? JSON.parse(t) : null;
+                } catch (e) {
+                  json = null;
+                }
+                return { status: res.status, ok: res.ok, json: json, text: t, url: url };
+              })
+              .catch(function () {
+                return { status: res.status, ok: res.ok, json: null, text: '', url: url };
+              });
+          });
+        }
+
+        var lastCmdAt = 0;
+        function sendBleStrength(percent0to100, statusEl) {
+          var pct = Math.max(0, Math.min(100, Math.round(Number(percent0to100) || 0)));
+          var cmd = {
+            commandId: uuid(),
+            type: 'ble_control',
+            payload: { mode: 'strength', value: pct },
+            ts: Date.now(),
+          };
+          var candidates = buildCommandCandidates();
+          var i = 0;
+          var body = '';
+          function tryNext() {
+            if (i >= candidates.length) {
+              setStatus(statusEl, '发送失败：no_candidate');
+              return Promise.resolve(false);
+            }
+            var c = candidates[i++];
+            body = c.body(cmd);
+            return postJson(c.url, body)
+              .then(function (r) {
+                if (r.ok && r.json && r.json.ok === true) return true;
+                if (r.status === 404) return tryNext();
+                if (r.status === 401 || r.status === 403) {
+                  setStatus(statusEl, '未授权：token_invalid');
+                  return false;
+                }
+                var hint = r.json && r.json.error ? String(r.json.error) : r.text ? String(r.text).slice(0, 120) : '';
+                setStatus(statusEl, '发送失败：' + r.status + (hint ? ' ' + hint : ''));
+                return false;
+              })
+              .catch(function (e) {
+                setStatus(statusEl, '网络错误：' + (e && e.message ? e.message : String(e)));
+                return false;
+              });
+          }
+          return tryNext();
+        }
+
+        if (!baseURL || !sessionId || !token) {
+          setStatus(document.getElementById('statusSwipe'), '参数缺失：baseURL/sessionId/token');
+          setStatus(document.getElementById('statusSingle'), '参数缺失：baseURL/sessionId/token');
+        }
+
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+        var panelSwipe = document.getElementById('panel-swipe');
+        var panelSingle = document.getElementById('panel-single');
+        function setTab(next) {
+          tabs.forEach(function (t) {
+            t.classList.toggle('active', t.getAttribute('data-tab') === next);
+          });
+          panelSwipe.style.display = next === 'swipe' ? '' : 'none';
+          panelSingle.style.display = next === 'single' ? '' : 'none';
+        }
+        tabs.forEach(function (t) {
+          t.addEventListener('click', function () {
+            setTab(t.getAttribute('data-tab'));
+          });
+        });
+
+        var slider = document.getElementById('slider');
+        var sliderTrack = document.getElementById('sliderTrack');
+        var sliderKnob = document.getElementById('sliderKnob');
+        var strengthValue = document.getElementById('strengthValue');
+        var statusSwipe = document.getElementById('statusSwipe');
+        var btnStop = document.getElementById('btnStop');
+
+        var dragging = false;
+        var lastSentPct = 0;
+        function applyPct(pct) {
+          var p = Math.max(0, Math.min(100, Math.round(pct)));
+          lastSentPct = p;
+          strengthValue.textContent = p + '%';
+          sliderKnob.textContent = p + '%';
+          sliderTrack.style.height = p + '%';
+          var sliderH = slider.clientHeight || 1;
+          var knobH = sliderKnob.clientHeight || 54;
+          var y = sliderH - (p / 100) * sliderH - knobH / 2;
+          y = Math.max(8, Math.min(sliderH - knobH - 8, y));
+          sliderKnob.style.transform = 'translateY(' + y + 'px)';
+        }
+        applyPct(0);
+
+        function pctFromPointer(clientY) {
+          var rect = slider.getBoundingClientRect();
+          var y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+          var pct = 100 - (y / rect.height) * 100;
+          return pct;
+        }
+
+        function maybeSend(pct) {
+          var now = Date.now();
+          if (now - lastCmdAt < 120) return;
+          lastCmdAt = now;
+          sendBleStrength(pct, statusSwipe).then(function (ok) {
+            if (ok) setStatus(statusSwipe, '已发送 strength=' + Math.round(pct) + '%');
+          });
+        }
+
+        function onDown(e) {
+          if (!baseURL || !sessionId || !token) return;
+          dragging = true;
+          var y = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+          var pct = pctFromPointer(y);
+          applyPct(pct);
+          maybeSend(pct);
+        }
+
+        function onMove(e) {
+          if (!dragging) return;
+          var y = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+          var pct = pctFromPointer(y);
+          applyPct(pct);
+          maybeSend(pct);
+        }
+
+        function onUp() {
+          if (!dragging) return;
+          dragging = false;
+          applyPct(0);
+          sendBleStrength(0, statusSwipe).then(function (ok) {
+            if (ok) setStatus(statusSwipe, '已停止');
+          });
+        }
+
+        slider.addEventListener('mousedown', onDown);
+        slider.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        slider.addEventListener('touchstart', onDown, { passive: true });
+        slider.addEventListener('touchmove', onMove, { passive: true });
+        window.addEventListener('touchend', onUp, { passive: true });
+
+        btnStop.addEventListener('click', function () {
+          applyPct(0);
+          sendBleStrength(0, statusSwipe).then(function (ok) {
+            if (ok) setStatus(statusSwipe, '已停止');
+          });
+        });
+
+        var modes = [
+          { key: 'breath', name: 'Breath', hint: '轻柔起伏' },
+          { key: 'climb', name: 'Climb', hint: '逐步上升' },
+          { key: 'rain', name: 'Rain', hint: '均匀节奏' },
+          { key: 'ripple', name: 'Ripple', hint: '波纹律动' },
+          { key: 'tide', name: 'Tide', hint: '潮汐往复' },
+          { key: 'pulse', name: 'Pulse', hint: '脉冲点按' },
+        ];
+        var activeModeKey = modes[3].key;
+        var modeGrid = document.getElementById('modeGrid');
+        var statusSingle = document.getElementById('statusSingle');
+        var btnPlay = document.getElementById('btnPlay');
+        var btnStopPlay = document.getElementById('btnStopPlay');
+        var playTimer = null;
+        var playIdx = 0;
+
+        function renderModes() {
+          modeGrid.innerHTML = '';
+          modes.forEach(function (m) {
+            var div = document.createElement('div');
+            div.className = 'card' + (m.key === activeModeKey ? ' active' : '');
+            var title = document.createElement('div');
+            title.className = 'cardTitle';
+            title.textContent = m.name;
+            var hint = document.createElement('div');
+            hint.className = 'cardHint';
+            hint.textContent = m.hint;
+            div.appendChild(title);
+            div.appendChild(hint);
+            div.addEventListener('click', function () {
+              activeModeKey = m.key;
+              renderModes();
+            });
+            modeGrid.appendChild(div);
+          });
+        }
+        renderModes();
+
+        function waveformValue(modeKey, idx) {
+          var t = idx / 18;
+          if (modeKey === 'breath') return Math.round((Math.sin(t) * 0.5 + 0.5) * 55 + 15);
+          if (modeKey === 'climb') return Math.round((Math.min(1, (idx % 90) / 90) * 80) + 10);
+          if (modeKey === 'rain') return 45 + Math.round(Math.sin(t * 3) * 18);
+          if (modeKey === 'tide') return Math.round((Math.sin(t * 0.7) * 0.5 + 0.5) * 70 + 10);
+          if (modeKey === 'pulse') return idx % 14 < 2 ? 85 : 18;
+          return 40 + Math.round(Math.sin(t * 1.6) * 25);
+        }
+
+        function stopPlay() {
+          if (playTimer) {
+            clearInterval(playTimer);
+            playTimer = null;
+          }
+          playIdx = 0;
+          sendBleStrength(0, statusSingle).then(function (ok) {
+            if (ok) setStatus(statusSingle, '已停止');
+          });
+        }
+
+        btnPlay.addEventListener('click', function () {
+          if (!baseURL || !sessionId || !token) return;
+          if (playTimer) return;
+          setStatus(statusSingle, '开始播放 mode=' + activeModeKey);
+          playIdx = 0;
+          playTimer = setInterval(function () {
+            var v = waveformValue(activeModeKey, playIdx++);
+            sendBleStrength(v, statusSingle).then(function (ok) {
+              if (ok) setStatus(statusSingle, '播放中 mode=' + activeModeKey + ' strength=' + v + '%');
+            });
+          }, 160);
+        });
+
+        btnStopPlay.addEventListener('click', stopPlay);
+
+        window.addEventListener('visibilitychange', function () {
+          if (document.visibilityState !== 'visible') return;
+        });
+
+        window.addEventListener('pagehide', function () {
+          stopPlay();
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -6,10 +6,13 @@ const uploadRouter = require("./upload");
 const { router: crudRouter } = require("./crud");
 const { authRequired } = require("../middleware/auth");
 const { legacyRouter, adminRouter, appRouter } = require("./business");
+const { webRouter: remoteControlWebRouter, apiRouter: remoteControlApiRouter } = require("./remoteControl");
 
 const router = new Router();
 
 router.use(healthRouter.routes(), healthRouter.allowedMethods());
+router.use(remoteControlWebRouter.routes(), remoteControlWebRouter.allowedMethods());
+router.use(remoteControlApiRouter.routes(), remoteControlApiRouter.allowedMethods());
 router.use(apiRouter.routes(), apiRouter.allowedMethods());
 router.use(uploadRouter.routes(), uploadRouter.allowedMethods());
 router.use(crudRouter.routes(), crudRouter.allowedMethods());
