@@ -6,15 +6,20 @@
     <title>远程遥控</title>
     <style>
       :root {
-        --bg: #0b0c10;
-        --card: rgba(255, 255, 255, 0.08);
-        --card2: rgba(255, 255, 255, 0.12);
-        --border: rgba(255, 255, 255, 0.14);
-        --text: rgba(255, 255, 255, 0.92);
-        --muted: rgba(255, 255, 255, 0.68);
-        --accent: #8b9a7a;
-        --accent2: #667b54;
+        --text: #ffffff;
+        --textMuted: rgba(255, 255, 255, 0.7);
+        --line: rgba(255, 255, 255, 0.12);
+        --panel: rgba(255, 255, 255, 0.1);
+        --panel2: rgba(255, 255, 255, 0.15);
+        --panel3: rgba(0, 0, 0, 0.35);
+        --chip: rgba(255, 255, 255, 0.1);
+        --chip2: rgba(255, 255, 255, 0.3);
+        --ink: #2d321e;
+        --accent: #f0e6e1;
+        --blue: #53e0ff;
         --danger: #ff5a5f;
+        --safeTop: env(safe-area-inset-top, 0px);
+        --safeBottom: env(safe-area-inset-bottom, 0px);
       }
       * {
         box-sizing: border-box;
@@ -22,260 +27,537 @@
       }
       body {
         margin: 0;
-        background: radial-gradient(1200px 700px at 50% -10%, rgba(139, 154, 122, 0.35), transparent 60%),
-          radial-gradient(900px 500px at 20% 10%, rgba(102, 123, 84, 0.26), transparent 55%),
-          var(--bg);
         color: var(--text);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB',
           'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+        height: 100vh;
+        overflow: hidden;
       }
-      .wrap {
-        max-width: 520px;
-        margin: 0 auto;
-        padding: 16px 14px 28px;
+      .screen {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      .bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+      body[data-tab='swipe'] .bg {
+        background-image: radial-gradient(1200px 900px at 50% -15%, rgba(83, 224, 255, 0.35), transparent 60%),
+          radial-gradient(900px 600px at 10% 5%, rgba(240, 230, 225, 0.16), transparent 55%),
+          linear-gradient(180deg, #05060a 0%, #0b0c10 55%, #07080c 100%);
+      }
+      body[data-tab='single'] .bg {
+        background-image: radial-gradient(1100px 750px at 50% -10%, rgba(240, 230, 225, 0.18), transparent 62%),
+          radial-gradient(900px 650px at 20% 10%, rgba(83, 224, 255, 0.18), transparent 58%),
+          linear-gradient(180deg, #06070b 0%, #0b0c10 58%, #06070b 100%);
+      }
+      .content {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
       }
       .header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        padding: 18px 8px 10px;
-        position: sticky;
-        top: 0;
-        background: linear-gradient(to bottom, rgba(11, 12, 16, 0.92), rgba(11, 12, 16, 0.60), rgba(11, 12, 16, 0));
-        backdrop-filter: blur(10px);
-        z-index: 10;
+        justify-content: flex-start;
+        padding: calc(var(--safeTop) + 10px) 16px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
-      .header h1 {
+      .headerTitle {
         margin: 0;
-        font-size: 18px;
-        font-weight: 700;
-        letter-spacing: 1px;
-      }
-      .sub {
-        text-align: center;
-        color: var(--muted);
-        font-size: 12px;
-        margin-top: 6px;
-        margin-bottom: 14px;
-      }
-      .tabs {
-        display: flex;
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.04);
-      }
-      .tab {
         flex: 1;
-        padding: 11px 10px;
-        text-align: center;
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--muted);
-        user-select: none;
-      }
-      .tab.active {
-        color: var(--text);
-        background: linear-gradient(135deg, rgba(102, 123, 84, 0.36), rgba(139, 154, 122, 0.24));
-      }
-      .panel {
-        margin-top: 14px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 16px;
-        padding: 14px;
-      }
-      .row {
-        display: flex;
-        gap: 12px;
-      }
-      .col {
-        flex: 1;
-      }
-      .hint {
-        font-size: 12px;
-        color: var(--muted);
-        line-height: 1.5;
-        margin: 0 0 10px 0;
-      }
-      .btn {
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(255, 255, 255, 0.10);
-        color: var(--text);
-        padding: 12px 12px;
-        border-radius: 14px;
-        font-weight: 700;
-        font-size: 14px;
-        user-select: none;
+        font-size: 20px;
+        font-weight: 600;
         text-align: center;
       }
-      .btn.primary {
-        background: linear-gradient(135deg, rgba(102, 123, 84, 0.75), rgba(139, 154, 122, 0.45));
-        border-color: rgba(255, 255, 255, 0.22);
-      }
-      .btn.danger {
-        background: rgba(255, 90, 95, 0.18);
-        border-color: rgba(255, 90, 95, 0.32);
-      }
-      .btn:active {
-        transform: scale(0.99);
-      }
-      .status {
-        margin-top: 10px;
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.78);
-        min-height: 18px;
-        word-break: break-all;
-      }
-      .sliderWrap {
-        margin-top: 14px;
+      .headerLeft,
+      .headerRight {
+        width: 92px;
         display: flex;
-        gap: 14px;
-        align-items: stretch;
+        gap: 8px;
+        align-items: center;
       }
-      .slider {
-        flex: 1;
-        border-radius: 18px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.06);
-        position: relative;
-        height: 340px;
-        touch-action: none;
-        overflow: hidden;
+      .headerLeft {
+        justify-content: flex-start;
       }
-      .sliderTrack {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 0%;
-        background: linear-gradient(180deg, rgba(139, 154, 122, 0.00), rgba(139, 154, 122, 0.32), rgba(102, 123, 84, 0.55));
+      .headerRight {
+        justify-content: flex-end;
       }
-      .sliderKnob {
-        position: absolute;
-        left: 10px;
-        right: 10px;
-        height: 54px;
-        border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        background: rgba(255, 255, 255, 0.12);
+      .iconBtn {
+        width: 40px;
+        height: 40px;
+        border-radius: 20px;
+        background: var(--chip2);
         display: flex;
         align-items: center;
         justify-content: center;
-        color: rgba(255, 255, 255, 0.9);
-        font-weight: 800;
-        letter-spacing: 0.5px;
-        transform: translateY(0);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+        user-select: none;
       }
-      .sliderMeta {
-        width: 94px;
+      .iconBtn.subtle {
+        background: var(--chip);
+      }
+      .iconBtn:active {
+        transform: scale(0.99);
+      }
+      .iconSvg {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+      .tabBarWrap {
+        padding: 12px 16px 0;
+      }
+      .tabBar {
+        display: flex;
+        position: relative;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        overflow: hidden;
+      }
+      .tabBar .indicator {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 50%;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateX(0%);
+        transition: transform 180ms ease;
+      }
+      body[data-tab='single'] .tabBar .indicator {
+        transform: translateX(100%);
+      }
+      .tabBtn {
+        flex: 1;
+        padding: 12px 10px;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.7);
+        user-select: none;
+        position: relative;
+        z-index: 1;
+      }
+      .tabBtn.active {
+        color: #ffffff;
+      }
+      .main {
+        flex: 1;
+        min-height: 0;
+        padding: 16px 16px calc(14px + var(--safeBottom));
         display: flex;
         flex-direction: column;
+      }
+      .hintLine {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 14px;
+        line-height: 20px;
+        text-align: center;
+        margin: 0 0 10px 0;
+      }
+      .controlArea {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+      }
+      .gestureArea {
+        flex: 1;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        position: relative;
+        overflow: hidden;
+        touch-action: none;
+      }
+      .gestureBeam {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(600px 380px at 50% 55%, rgba(83, 224, 255, 0.22), transparent 60%),
+          radial-gradient(520px 340px at 50% 30%, rgba(240, 230, 225, 0.14), transparent 62%);
+        opacity: 0.9;
+      }
+      .gestureGuide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 18px;
+        text-align: center;
+        pointer-events: none;
+      }
+      .guideTitle {
+        font-size: 18px;
+        font-weight: 600;
+        color: #ffffff;
+      }
+      .guideText {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 20px;
+      }
+      .touchGlow {
+        position: absolute;
+        width: 140px;
+        height: 140px;
+        border-radius: 999px;
+        transform: translate(-70px, -70px);
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 50%, rgba(83, 224, 255, 0.35), rgba(83, 224, 255, 0) 65%);
+        opacity: 0;
+        transition: opacity 120ms ease;
+      }
+      .touchGlow.on {
+        opacity: 1;
+      }
+      .rightPanel {
+        width: 74px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-left: 12px;
+        pointer-events: none;
+      }
+      .meter {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+      .meterSeg {
+        height: 12px;
+        border-radius: 6px;
+        width: 48px;
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .meterSeg.on {
+        background: var(--accent);
+      }
+      .boostBtn {
+        width: 56px;
+        height: 56px;
+        border-radius: 28px;
+        background: linear-gradient(135deg, rgba(240, 230, 225, 0.92), rgba(83, 224, 255, 0.65));
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: auto;
+        user-select: none;
+      }
+      .boostBtn:active {
+        transform: scale(0.99);
+      }
+      .boostBtn span {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ink);
+        text-align: center;
+        line-height: 14px;
+      }
+      .statusBar {
+        margin-top: 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.28);
+        padding: 10px 12px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         gap: 10px;
       }
-      .pill {
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-        padding: 10px 10px;
-        text-align: center;
+      .statusText {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.9);
+        word-break: break-all;
+        line-height: 16px;
       }
-      .pill .label {
-        font-size: 11px;
-        color: var(--muted);
-        margin-bottom: 4px;
+      .statusActions {
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
       }
-      .pill .value {
+      .miniBtn {
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.1);
+        font-size: 12px;
+        font-weight: 600;
+        color: #ffffff;
+        user-select: none;
+      }
+      .miniBtn:active {
+        transform: scale(0.99);
+      }
+      .miniBtn.danger {
+        background: rgba(255, 90, 95, 0.18);
+        border-color: rgba(255, 90, 95, 0.32);
+      }
+      .singleScroll {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+      }
+      .sectionTitle {
+        margin: 12px 0 10px;
         font-size: 16px;
-        font-weight: 800;
+        font-weight: 700;
+        color: #ffffff;
       }
-      .grid {
+      .variantGrid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
-        margin-top: 12px;
       }
-      .card {
+      .variantCard {
         border-radius: 16px;
-        border: 1px solid var(--border);
+        border: 1px solid rgba(255, 255, 255, 0.14);
         background: rgba(255, 255, 255, 0.06);
-        padding: 12px;
+        height: 132px;
+        position: relative;
+        overflow: hidden;
         user-select: none;
       }
-      .card.active {
-        border-color: rgba(139, 154, 122, 0.70);
-        background: rgba(139, 154, 122, 0.12);
+      .variantCard.active {
+        border-color: rgba(240, 230, 225, 0.65);
+        background: rgba(240, 230, 225, 0.12);
       }
-      .cardTitle {
-        font-size: 14px;
-        font-weight: 800;
-        margin-bottom: 8px;
+      .variantBg {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120px 120px at 75% 30%, rgba(83, 224, 255, 0.28), transparent 60%),
+          radial-gradient(160px 160px at 25% 70%, rgba(240, 230, 225, 0.18), transparent 62%);
+        opacity: 0.9;
       }
-      .cardHint {
-        font-size: 11px;
-        color: var(--muted);
-        line-height: 1.4;
-        min-height: 32px;
-      }
-      .toolbar {
+      .variantLabel {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        right: 12px;
         display: flex;
-        gap: 12px;
-        margin-top: 12px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
       }
-      .toolbar .btn {
+      .variantName {
+        font-size: 14px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+      .playBadge {
+        width: 34px;
+        height: 34px;
+        border-radius: 17px;
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .playBadge svg {
+        width: 20px;
+        height: 20px;
+        display: block;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 50;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .modal.on {
+        display: flex;
+      }
+      .modalCard {
+        width: 100%;
+        max-width: 520px;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        background: rgba(255, 255, 255, 0.9);
+        color: #2d321e;
+      }
+      .modalCardBg {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(900px 600px at 50% -10%, rgba(83, 224, 255, 0.22), transparent 62%),
+          linear-gradient(135deg, rgba(229, 229, 229, 0.72), rgba(229, 229, 229, 0.36));
+      }
+      .modalInner {
+        position: relative;
+        padding: 18px 16px 18px;
+      }
+      .modalHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .modalHeader .title {
+        font-size: 18px;
+        font-weight: 800;
+        text-align: center;
         flex: 1;
       }
-      .foot {
-        margin-top: 16px;
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.58);
-        line-height: 1.5;
+      .modalClose {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+      }
+      .modalBody {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+        text-align: center;
+      }
+      .tipHero {
+        width: 100%;
+        height: 150px;
+        border-radius: 14px;
+        background: radial-gradient(260px 160px at 50% 50%, rgba(83, 224, 255, 0.35), rgba(83, 224, 255, 0) 60%),
+          radial-gradient(260px 160px at 35% 65%, rgba(240, 230, 225, 0.26), rgba(240, 230, 225, 0) 62%);
+      }
+      .tipTitle {
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 24px;
+      }
+      .tipLine {
+        font-size: 14px;
+        line-height: 22px;
+        color: #2d321e;
       }
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
       }
     </style>
   </head>
-  <body>
-    <div class="header">
-      <h1>远程遥控</h1>
-    </div>
-    <div class="wrap">
-      <div class="sub">请确保玩具所在手机已进入“接收端”并连接玩具</div>
-      <div class="tabs" role="tablist">
-        <div class="tab active" role="tab" data-tab="swipe">滑屏使用</div>
-        <div class="tab" role="tab" data-tab="single">模式探索</div>
-      </div>
-
-      <div class="panel" id="panel-swipe">
-        <p class="hint">按住滑块上下滑动即可控制强度。松手将自动停止。</p>
-        <div class="sliderWrap">
-          <div class="slider" id="slider">
-            <div class="sliderTrack" id="sliderTrack"></div>
-            <div class="sliderKnob" id="sliderKnob">0%</div>
-          </div>
-          <div class="sliderMeta">
-            <div class="pill">
-              <div class="label">强度</div>
-              <div class="value" id="strengthValue">0%</div>
+  <body data-tab="swipe">
+    <div class="screen">
+      <div class="bg"></div>
+      <div class="content">
+        <div class="header">
+          <div class="headerLeft">
+            <div class="iconBtn subtle" id="btnBack" aria-label="back">
+              <svg class="iconSvg" viewBox="0 0 24 24" fill="none">
+                <path d="M14.5 5L8 11.5L14.5 18" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
             </div>
-            <div class="btn danger" id="btnStop">停止</div>
+          </div>
+          <div class="headerTitle" id="headerTitle">滑屏使用</div>
+          <div class="headerRight">
+            <div class="iconBtn" id="btnSpray" aria-label="stop">
+              <svg class="iconSvg" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3C9.2 3 7 5.2 7 8V9H17V8C17 5.2 14.8 3 12 3Z" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M7 9H17V14C17 16.8 14.8 19 12 19C9.2 19 7 16.8 7 14V9Z" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="iconBtn" id="btnHelp" aria-label="help">
+              <svg class="iconSvg" viewBox="0 0 24 24" fill="none">
+                <path d="M12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22Z" stroke="#FFFFFF" stroke-width="2"/>
+                <path d="M9.09 9C9.325 8.331 9.789 7.766 10.4 7.405C11.011 7.044 11.728 6.91 12.428 7.027C13.128 7.144 13.766 7.505 14.229 8.044C14.692 8.583 14.95 9.265 14.96 9.975C14.96 12 12 12.75 12 12.75" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 17H12.01" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
           </div>
         </div>
-        <div class="status mono" id="statusSwipe"></div>
+
+        <div class="tabBarWrap">
+          <div class="tabBar" role="tablist">
+            <div class="indicator" aria-hidden="true"></div>
+            <div class="tabBtn active" role="tab" data-tab="swipe">滑屏使用</div>
+            <div class="tabBtn" role="tab" data-tab="single">单次模式</div>
+          </div>
+        </div>
+
+        <div class="main" id="pageSwipe">
+          <p class="hintLine" id="swipeHint">一指滑动，最高40％动力；双指滑动，最高70％动力；三指滑动，可达100%动力</p>
+          <div class="controlArea">
+            <div class="gestureArea" id="gestureArea">
+              <div class="gestureBeam"></div>
+              <div class="touchGlow" id="touchGlow"></div>
+              <div class="gestureGuide" id="gestureGuide">
+                <div class="guideTitle">滑动控制</div>
+                <div class="guideText">按住并上下滑动，松手自动停止</div>
+              </div>
+            </div>
+            <div class="rightPanel">
+              <div class="meter" id="meter"></div>
+              <div class="boostBtn" id="btnBoost"><span>一键<br />加速</span></div>
+            </div>
+          </div>
+          <div class="statusBar">
+            <div class="statusText mono" id="statusSwipe"></div>
+            <div class="statusActions">
+              <div class="miniBtn danger" id="btnStop">停止</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="main" id="pageSingle" style="display: none">
+          <div class="singleScroll">
+            <div class="sectionTitle">预设波形</div>
+            <div class="variantGrid" id="modeGrid"></div>
+          </div>
+          <div class="statusBar">
+            <div class="statusText mono" id="statusSingle"></div>
+            <div class="statusActions">
+              <div class="miniBtn danger" id="btnStopPlay">停止</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="panel" id="panel-single" style="display: none">
-        <p class="hint">点击选择单次模式，然后点击“开始”。该页面会持续下发控制指令到分享端。</p>
-        <div class="grid" id="modeGrid"></div>
-        <div class="toolbar">
-          <div class="btn primary" id="btnPlay">开始</div>
-          <div class="btn danger" id="btnStopPlay">停止</div>
-        </div>
-        <div class="status mono" id="statusSingle"></div>
-        <div class="foot">
-          说明：当前模式探索为网页端版本，基于强度指令实现联动；若你们的中转服务支持更高阶指令，可在后续升级为服务端下发“播放波形”指令。
+      <div class="modal" id="tipsModal" role="dialog" aria-modal="true">
+        <div class="modalCard">
+          <div class="modalCardBg"></div>
+          <div class="modalInner">
+            <div class="modalHeader">
+              <div style="width: 32px"></div>
+              <div class="title">使用提示</div>
+              <div class="modalClose" id="btnCloseTips" aria-label="close">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18" stroke="#2D321E" stroke-width="2" stroke-linecap="round" />
+                  <path d="M6 6L18 18" stroke="#2D321E" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+            </div>
+            <div class="modalBody" id="tipsBody">
+              <div class="tipHero"></div>
+              <div class="tipTitle" id="tipTitle"></div>
+              <div id="tipLines"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -426,50 +708,114 @@
           setStatus(document.getElementById('statusSingle'), '参数缺失：baseURL/sessionId/token');
         }
 
-        var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
-        var panelSwipe = document.getElementById('panel-swipe');
-        var panelSingle = document.getElementById('panel-single');
-        function setTab(next) {
+        var headerTitle = document.getElementById('headerTitle');
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabBtn'));
+        var pageSwipe = document.getElementById('pageSwipe');
+        var pageSingle = document.getElementById('pageSingle');
+        var tipsModal = document.getElementById('tipsModal');
+        var btnHelp = document.getElementById('btnHelp');
+        var btnCloseTips = document.getElementById('btnCloseTips');
+        var btnBack = document.getElementById('btnBack');
+        var btnSpray = document.getElementById('btnSpray');
+
+        var statusSwipe = document.getElementById('statusSwipe');
+        var btnStop = document.getElementById('btnStop');
+        var btnBoost = document.getElementById('btnBoost');
+        var meter = document.getElementById('meter');
+        var gestureArea = document.getElementById('gestureArea');
+        var touchGlow = document.getElementById('touchGlow');
+        var gestureGuide = document.getElementById('gestureGuide');
+
+        var statusSingle = document.getElementById('statusSingle');
+        var modeGrid = document.getElementById('modeGrid');
+        var btnStopPlay = document.getElementById('btnStopPlay');
+
+        function setBodyTab(next) {
+          document.body.setAttribute('data-tab', next);
           tabs.forEach(function (t) {
             t.classList.toggle('active', t.getAttribute('data-tab') === next);
           });
-          panelSwipe.style.display = next === 'swipe' ? '' : 'none';
-          panelSingle.style.display = next === 'single' ? '' : 'none';
+          pageSwipe.style.display = next === 'swipe' ? '' : 'none';
+          pageSingle.style.display = next === 'single' ? '' : 'none';
+          headerTitle.textContent = next === 'swipe' ? '滑屏使用' : '模式探索';
         }
-        tabs.forEach(function (t) {
-          t.addEventListener('click', function () {
-            setTab(t.getAttribute('data-tab'));
+
+        var tipPages = [
+          { title: '多指滑动', lines: ['一指滑动，最高40％动力', '双指滑动，最高70％动力', '三指滑动，可达100%动力'] },
+          { title: '一键加速', lines: ['无需滑动，指尖轻点，瞬间唤醒深处炽热'] },
+        ];
+        var tipPageIndex = 0;
+        function renderTipPage() {
+          var title = document.getElementById('tipTitle');
+          var lines = document.getElementById('tipLines');
+          if (!title || !lines) return;
+          title.textContent = tipPages[tipPageIndex].title;
+          lines.innerHTML = '';
+          tipPages[tipPageIndex].lines.forEach(function (t) {
+            var div = document.createElement('div');
+            div.className = 'tipLine';
+            div.textContent = t;
+            lines.appendChild(div);
           });
+        }
+        renderTipPage();
+
+        btnHelp.addEventListener('click', function () {
+          tipsModal.classList.add('on');
+          renderTipPage();
+        });
+        btnCloseTips.addEventListener('click', function () {
+          tipsModal.classList.remove('on');
+        });
+        tipsModal.addEventListener('click', function (e) {
+          if (e.target === tipsModal) tipsModal.classList.remove('on');
+        });
+        document.getElementById('tipsBody').addEventListener('click', function () {
+          tipPageIndex = (tipPageIndex + 1) % tipPages.length;
+          renderTipPage();
         });
 
-        var slider = document.getElementById('slider');
-        var sliderTrack = document.getElementById('sliderTrack');
-        var sliderKnob = document.getElementById('sliderKnob');
-        var strengthValue = document.getElementById('strengthValue');
-        var statusSwipe = document.getElementById('statusSwipe');
-        var btnStop = document.getElementById('btnStop');
+        btnBack.addEventListener('click', function () {
+          try {
+            history.back();
+          } catch (e) {}
+        });
 
-        var dragging = false;
-        var lastSentPct = 0;
-        function applyPct(pct) {
-          var p = Math.max(0, Math.min(100, Math.round(pct)));
-          lastSentPct = p;
-          strengthValue.textContent = p + '%';
-          sliderKnob.textContent = p + '%';
-          sliderTrack.style.height = p + '%';
-          var sliderH = slider.clientHeight || 1;
-          var knobH = sliderKnob.clientHeight || 54;
-          var y = sliderH - (p / 100) * sliderH - knobH / 2;
-          y = Math.max(8, Math.min(sliderH - knobH - 8, y));
-          sliderKnob.style.transform = 'translateY(' + y + 'px)';
+        var meterSegs = [];
+        for (var i = 0; i < 14; i++) {
+          var seg = document.createElement('div');
+          seg.className = 'meterSeg';
+          seg.style.width = String(18 + i * 2) + 'px';
+          meter.appendChild(seg);
+          meterSegs.push(seg);
         }
-        applyPct(0);
 
-        function pctFromPointer(clientY) {
-          var rect = slider.getBoundingClientRect();
+        function setMeter(pct) {
+          var activeCount = Math.round((pct / 100) * meterSegs.length);
+          for (var i = 0; i < meterSegs.length; i++) {
+            meterSegs[i].classList.toggle('on', i < activeCount);
+          }
+        }
+
+        function maxPercentByFingers(count) {
+          if (count >= 3) return 100;
+          if (count === 2) return 70;
+          return 40;
+        }
+
+        function setGlow(x, y, on) {
+          touchGlow.style.left = x + 'px';
+          touchGlow.style.top = y + 'px';
+          touchGlow.classList.toggle('on', !!on);
+          gestureGuide.style.opacity = on ? '0' : '1';
+        }
+
+        function pctFromPointerInArea(clientY, fingerCount) {
+          var rect = gestureArea.getBoundingClientRect();
           var y = Math.max(0, Math.min(rect.height, clientY - rect.top));
-          var pct = 100 - (y / rect.height) * 100;
-          return pct;
+          var raw = 100 - (y / rect.height) * 100;
+          var cap = maxPercentByFingers(fingerCount);
+          return Math.round(Math.max(0, Math.min(cap, raw)));
         }
 
         function maybeSend(pct) {
@@ -481,88 +827,93 @@
           });
         }
 
+        var dragging = false;
+        var activePointers = new Set();
+
         function onDown(e) {
           if (!baseURL || !sessionId || !token) return;
           dragging = true;
+          if (e.pointerId != null) activePointers.add(e.pointerId);
+          var fingerCount = e.touches ? e.touches.length : activePointers.size || 1;
           var y = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
-          var pct = pctFromPointer(y);
-          applyPct(pct);
+          var x = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+          var pct = pctFromPointerInArea(y, fingerCount);
+          setGlow(x, y, true);
+          setMeter(pct);
           maybeSend(pct);
         }
 
         function onMove(e) {
           if (!dragging) return;
+          var fingerCount = e.touches ? e.touches.length : activePointers.size || 1;
           var y = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
-          var pct = pctFromPointer(y);
-          applyPct(pct);
+          var x = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+          var pct = pctFromPointerInArea(y, fingerCount);
+          setGlow(x, y, true);
+          setMeter(pct);
           maybeSend(pct);
         }
 
         function onUp() {
           if (!dragging) return;
           dragging = false;
-          applyPct(0);
+          activePointers.clear();
+          setGlow(0, 0, false);
+          setMeter(0);
           sendBleStrength(0, statusSwipe).then(function (ok) {
             if (ok) setStatus(statusSwipe, '已停止');
           });
         }
 
-        slider.addEventListener('mousedown', onDown);
-        slider.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        slider.addEventListener('touchstart', onDown, { passive: true });
-        slider.addEventListener('touchmove', onMove, { passive: true });
+        gestureArea.addEventListener('pointerdown', function (e) {
+          try {
+            gestureArea.setPointerCapture(e.pointerId);
+          } catch (err) {}
+          onDown(e);
+        });
+        gestureArea.addEventListener('pointermove', onMove);
+        gestureArea.addEventListener('pointerup', function (e) {
+          activePointers.delete(e.pointerId);
+          onUp();
+        });
+        gestureArea.addEventListener('pointercancel', function (e) {
+          activePointers.delete(e.pointerId);
+          onUp();
+        });
+        gestureArea.addEventListener('touchstart', onDown, { passive: true });
+        gestureArea.addEventListener('touchmove', onMove, { passive: true });
         window.addEventListener('touchend', onUp, { passive: true });
 
         btnStop.addEventListener('click', function () {
-          applyPct(0);
-          sendBleStrength(0, statusSwipe).then(function (ok) {
-            if (ok) setStatus(statusSwipe, '已停止');
+          onUp();
+        });
+
+        btnBoost.addEventListener('click', function () {
+          if (!baseURL || !sessionId || !token) return;
+          var pct = 85;
+          setMeter(pct);
+          sendBleStrength(pct, statusSwipe).then(function (ok) {
+            if (ok) setStatus(statusSwipe, '一键加速 strength=' + pct + '%');
           });
         });
 
         var modes = [
-          { key: 'breath', name: 'Breath', hint: '轻柔起伏' },
-          { key: 'climb', name: 'Climb', hint: '逐步上升' },
-          { key: 'rain', name: 'Rain', hint: '均匀节奏' },
-          { key: 'ripple', name: 'Ripple', hint: '波纹律动' },
-          { key: 'tide', name: 'Tide', hint: '潮汐往复' },
-          { key: 'pulse', name: 'Pulse', hint: '脉冲点按' },
+          { key: 'breath', name: 'Breath' },
+          { key: 'climb', name: 'Climb' },
+          { key: 'rain', name: 'Rain' },
+          { key: 'ripple', name: 'Ripple' },
+          { key: 'tide', name: 'Tide' },
+          { key: 'pulse', name: 'Pulse' },
         ];
         var activeModeKey = modes[3].key;
-        var modeGrid = document.getElementById('modeGrid');
-        var statusSingle = document.getElementById('statusSingle');
-        var btnPlay = document.getElementById('btnPlay');
-        var btnStopPlay = document.getElementById('btnStopPlay');
         var playTimer = null;
         var playIdx = 0;
-
-        function renderModes() {
-          modeGrid.innerHTML = '';
-          modes.forEach(function (m) {
-            var div = document.createElement('div');
-            div.className = 'card' + (m.key === activeModeKey ? ' active' : '');
-            var title = document.createElement('div');
-            title.className = 'cardTitle';
-            title.textContent = m.name;
-            var hint = document.createElement('div');
-            hint.className = 'cardHint';
-            hint.textContent = m.hint;
-            div.appendChild(title);
-            div.appendChild(hint);
-            div.addEventListener('click', function () {
-              activeModeKey = m.key;
-              renderModes();
-            });
-            modeGrid.appendChild(div);
-          });
-        }
-        renderModes();
+        var isPlaying = false;
 
         function waveformValue(modeKey, idx) {
           var t = idx / 18;
           if (modeKey === 'breath') return Math.round((Math.sin(t) * 0.5 + 0.5) * 55 + 15);
-          if (modeKey === 'climb') return Math.round((Math.min(1, (idx % 90) / 90) * 80) + 10);
+          if (modeKey === 'climb') return Math.round(Math.min(1, (idx % 90) / 90) * 80 + 10);
           if (modeKey === 'rain') return 45 + Math.round(Math.sin(t * 3) * 18);
           if (modeKey === 'tide') return Math.round((Math.sin(t * 0.7) * 0.5 + 0.5) * 70 + 10);
           if (modeKey === 'pulse') return idx % 14 < 2 ? 85 : 18;
@@ -575,15 +926,17 @@
             playTimer = null;
           }
           playIdx = 0;
+          isPlaying = false;
           sendBleStrength(0, statusSingle).then(function (ok) {
             if (ok) setStatus(statusSingle, '已停止');
           });
         }
 
-        btnPlay.addEventListener('click', function () {
+        function startPlay() {
           if (!baseURL || !sessionId || !token) return;
           if (playTimer) return;
-          setStatus(statusSingle, '开始播放 mode=' + activeModeKey);
+          isPlaying = true;
+          setStatus(statusSingle, '播放中 mode=' + activeModeKey);
           playIdx = 0;
           playTimer = setInterval(function () {
             var v = waveformValue(activeModeKey, playIdx++);
@@ -591,17 +944,75 @@
               if (ok) setStatus(statusSingle, '播放中 mode=' + activeModeKey + ' strength=' + v + '%');
             });
           }, 160);
+        }
+
+        function renderModes() {
+          modeGrid.innerHTML = '';
+          modes.forEach(function (m) {
+            var div = document.createElement('div');
+            div.className = 'variantCard' + (m.key === activeModeKey ? ' active' : '');
+            var bg = document.createElement('div');
+            bg.className = 'variantBg';
+            var label = document.createElement('div');
+            label.className = 'variantLabel';
+            var name = document.createElement('div');
+            name.className = 'variantName';
+            name.textContent = m.name;
+            var badge = document.createElement('div');
+            badge.className = 'playBadge';
+            badge.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none">' +
+              (m.key === activeModeKey && isPlaying
+                ? '<path d="M7 6H10V18H7V6Z" fill="#F0E6E1"/><path d="M14 6H17V18H14V6Z" fill="#F0E6E1"/>'
+                : '<path d="M9 7L18 12L9 17V7Z" fill="#FFFFFF"/>') +
+              '</svg>';
+            label.appendChild(name);
+            label.appendChild(badge);
+            div.appendChild(bg);
+            div.appendChild(label);
+            div.addEventListener('click', function () {
+              if (activeModeKey === m.key) {
+                if (isPlaying) stopPlay();
+                else startPlay();
+              } else {
+                activeModeKey = m.key;
+                stopPlay();
+                startPlay();
+              }
+              renderModes();
+            });
+            modeGrid.appendChild(div);
+          });
+        }
+        renderModes();
+
+        btnStopPlay.addEventListener('click', function () {
+          stopPlay();
+          renderModes();
         });
 
-        btnStopPlay.addEventListener('click', stopPlay);
+        tabs.forEach(function (t) {
+          t.addEventListener('click', function () {
+            stopPlay();
+            renderModes();
+            setBodyTab(t.getAttribute('data-tab'));
+          });
+        });
 
-        window.addEventListener('visibilitychange', function () {
-          if (document.visibilityState !== 'visible') return;
+        btnSpray.addEventListener('click', function () {
+          if (document.body.getAttribute('data-tab') === 'single') {
+            stopPlay();
+            renderModes();
+          } else {
+            onUp();
+          }
         });
 
         window.addEventListener('pagehide', function () {
           stopPlay();
         });
+
+        setMeter(0);
       })();
     </script>
   </body>
