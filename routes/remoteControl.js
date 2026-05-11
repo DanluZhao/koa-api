@@ -10,6 +10,7 @@ const {
   pullCommands,
   ackCommand
 } = require("../services/remoteControlStore");
+const { getModeExplore } = require("../services/modeExploreService");
 
 const htmlPath = path.join(process.cwd(), "remote-control-web", "index.html");
 let cachedHtml = null;
@@ -20,6 +21,21 @@ try {
 }
 
 const webRouter = new Router();
+webRouter.get("/remote-control/index.html", async (ctx) => {
+  const sessionId = String(ctx.query?.sessionId || "").trim();
+  if (sessionId) {
+    const q = new URLSearchParams();
+    if (ctx.query?.token) q.set("token", String(ctx.query.token));
+    if (ctx.query?.baseURL) q.set("baseURL", String(ctx.query.baseURL));
+    const qs = q.toString();
+    ctx.status = 302;
+    ctx.redirect(`/remote-control/${encodeURIComponent(sessionId)}${qs ? `?${qs}` : ""}`);
+    return;
+  }
+  ctx.status = 200;
+  ctx.type = "text/html; charset=utf-8";
+  ctx.body = cachedHtml;
+});
 webRouter.get("/remote-control/:sessionId", async (ctx) => {
   ctx.status = 200;
   ctx.type = "text/html; charset=utf-8";
@@ -57,6 +73,83 @@ function requireAuthedSession(ctx) {
   return s;
 }
 
+const modeExploreCache = new Map();
+function getCacheKey({ includeUnpublished }) {
+  return includeUnpublished ? "mode-explore:all" : "mode-explore:published";
+}
+function toAbsoluteUrl(origin, value) {
+  const v = value === null || value === undefined ? "" : String(value).trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("data:")) return v;
+  if (!origin) return v;
+  if (v.startsWith("/")) return `${origin}${v}`;
+  return `${origin}/${v}`;
+}
+function normalizeWaveformForH5(origin, wf) {
+  const id = wf?.id || wf?._id || wf?.name || "";
+  const waveImage = toAbsoluteUrl(origin, wf?.waveImage || wf?.wave_image || wf?.image);
+  return {
+    ...wf,
+    id,
+    waveImage
+  };
+}
+function normalizeCategoriesForH5(origin, categories) {
+  return (categories || []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    iconUrl: toAbsoluteUrl(origin, c.iconUrl),
+    sortOrder: c.sortOrder,
+    waveforms: (c.waveforms || []).map((wf) => normalizeWaveformForH5(origin, wf))
+  }));
+}
+
+async function handleRemoteModeExplore(ctx, sessionId) {
+  ctx.params.sessionId = sessionId;
+  const s = requireAuthedSession(ctx);
+  if (!s.ok) {
+    ctx.status = s.status;
+    ctx.body = { ok: false, error: "token_invalid" };
+    return;
+  }
+
+  const includeUnpublishedRaw = ctx.query?.includeUnpublished;
+  const includeUnpublished =
+    includeUnpublishedRaw === "1" ||
+    includeUnpublishedRaw === 1 ||
+    includeUnpublishedRaw === true ||
+    String(includeUnpublishedRaw || "").toLowerCase() === "true";
+
+  const cacheKey = getCacheKey({ includeUnpublished });
+  const cached = modeExploreCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && cached.expireAtMs > now) {
+    ctx.status = 200;
+    ctx.body = cached.body;
+    return;
+  }
+
+  try {
+    const origin = ctx.origin || `${ctx.protocol}://${ctx.host}`;
+    const data = await getModeExplore({ includeUnpublished });
+    const body = {
+      ok: true,
+      data: {
+        categories: normalizeCategoriesForH5(origin, data.categories),
+        version: String(process.env.API_VERSION || "v1"),
+        updatedAt: new Date().toISOString()
+      }
+    };
+    modeExploreCache.set(cacheKey, { expireAtMs: now + 10 * 60 * 1000, body });
+    ctx.status = 200;
+    ctx.body = body;
+  } catch {
+    ctx.status = 500;
+    ctx.body = { ok: false, error: "internal_error" };
+  }
+}
+
 async function handleCommands(ctx, sessionId, commandBody) {
   ctx.params.sessionId = sessionId;
   const s = requireAuthedSession(ctx);
@@ -89,6 +182,14 @@ apiRouter.post("/commands", async (ctx) => {
   }
   const { sessionId: _, ...rest } = body;
   await handleCommands(ctx, sessionId, rest);
+});
+
+apiRouter.get("/:sessionId/mode-explore", async (ctx) => {
+  await handleRemoteModeExplore(ctx, String(ctx.params.sessionId || "").trim());
+});
+
+apiRouter.get("/sessions/:sessionId/mode-explore", async (ctx) => {
+  await handleRemoteModeExplore(ctx, String(ctx.params.sessionId || "").trim());
 });
 
 apiRouter.get("/:sessionId/pull", async (ctx) => {
