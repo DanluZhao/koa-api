@@ -14,11 +14,38 @@ const { getModeExplore } = require("../services/modeExploreService");
 
 const htmlPath = path.join(process.cwd(), "remote-control-web", "index.html");
 let cachedHtml = null;
-try {
-  cachedHtml = fsSync.readFileSync(htmlPath, "utf8");
-} catch {
-  cachedHtml = "<!doctype html><html><head><meta charset=\"utf-8\" /><title>remote-control</title></head><body>missing index.html</body></html>";
+let cachedHtmlMtimeMs = 0;
+
+function loadHtmlFallback() {
+  cachedHtml =
+    "<!doctype html><html><head><meta charset=\"utf-8\" /><title>remote-control</title></head><body>missing index.html</body></html>";
+  cachedHtmlMtimeMs = 0;
 }
+
+function loadHtmlSync() {
+  try {
+    const stat = fsSync.statSync(htmlPath);
+    cachedHtml = fsSync.readFileSync(htmlPath, "utf8");
+    cachedHtmlMtimeMs = stat.mtimeMs || 0;
+  } catch {
+    loadHtmlFallback();
+  }
+}
+
+function getHtmlMaybeReload() {
+  if (!cachedHtml) loadHtmlSync();
+  try {
+    const stat = fsSync.statSync(htmlPath);
+    const mtimeMs = stat.mtimeMs || 0;
+    if (mtimeMs && mtimeMs !== cachedHtmlMtimeMs) {
+      cachedHtml = fsSync.readFileSync(htmlPath, "utf8");
+      cachedHtmlMtimeMs = mtimeMs;
+    }
+  } catch {}
+  return cachedHtml;
+}
+
+loadHtmlSync();
 
 const webRouter = new Router();
 webRouter.get("/remote-control/index.html", async (ctx) => {
@@ -34,12 +61,18 @@ webRouter.get("/remote-control/index.html", async (ctx) => {
   }
   ctx.status = 200;
   ctx.type = "text/html; charset=utf-8";
-  ctx.body = cachedHtml;
+  ctx.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  ctx.set("Pragma", "no-cache");
+  ctx.set("Expires", "0");
+  ctx.body = getHtmlMaybeReload();
 });
 webRouter.get("/remote-control/:sessionId", async (ctx) => {
   ctx.status = 200;
   ctx.type = "text/html; charset=utf-8";
-  ctx.body = cachedHtml;
+  ctx.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  ctx.set("Pragma", "no-cache");
+  ctx.set("Expires", "0");
+  ctx.body = getHtmlMaybeReload();
 });
 
 const apiRouter = new Router({ prefix: "/api/remote-control" });

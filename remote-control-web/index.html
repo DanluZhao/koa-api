@@ -905,6 +905,7 @@
           { key: 'tide', name: 'Tide' },
           { key: 'pulse', name: 'Pulse' },
         ];
+        var waveformByKey = {};
         var activeModeKey = modes[3].key;
         var playTimer = null;
         var playIdx = 0;
@@ -918,6 +919,93 @@
           if (modeKey === 'tide') return Math.round((Math.sin(t * 0.7) * 0.5 + 0.5) * 70 + 10);
           if (modeKey === 'pulse') return idx % 14 < 2 ? 85 : 18;
           return 40 + Math.round(Math.sin(t * 1.6) * 25);
+        }
+
+        function buildModeExploreCandidates() {
+          var encodedSession = encodeURIComponent(sessionId);
+          return [
+            baseURL + '/api/remote-control/' + encodedSession + '/mode-explore',
+            baseURL + '/api/remote-control/sessions/' + encodedSession + '/mode-explore',
+          ];
+        }
+
+        function getJson(url) {
+          return fetch(url, {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-Remote-Control-Token': token,
+            },
+          }).then(function (res) {
+            return res.text().then(function (text) {
+              var json = null;
+              try {
+                json = text ? JSON.parse(text) : null;
+              } catch (err) {}
+              return { status: res.status, json: json, text: text };
+            });
+          });
+        }
+
+        function pickCategoriesFromResponse(body) {
+          if (!body || typeof body !== 'object') return null;
+          var data = null;
+          if (body.ok === true) data = body.data;
+          else if (body.success === true) data = body.data;
+          else if (body.data && body.data.ok === true) data = body.data.data;
+          if (!data || typeof data !== 'object') return null;
+          var categories = data.categories;
+          return Array.isArray(categories) ? categories : null;
+        }
+
+        function applyRemoteModes(categories) {
+          var list = [];
+          var byKey = {};
+          (categories || []).forEach(function (cat) {
+            (cat && Array.isArray(cat.waveforms) ? cat.waveforms : []).forEach(function (wf) {
+              var key = wf && (wf.id || wf._id || wf.name) ? String(wf.id || wf._id || wf.name).trim() : '';
+              if (!key || byKey[key]) return;
+              var name = wf && wf.name ? String(wf.name) : key;
+              list.push({ key: key, name: name });
+              byKey[key] = wf;
+            });
+          });
+          if (list.length === 0) return false;
+          modes = list;
+          waveformByKey = byKey;
+          activeModeKey = modes[0].key;
+          return true;
+        }
+
+        function loadRemoteModes() {
+          if (!baseURL || !sessionId || !token) return Promise.resolve(false);
+          var candidates = buildModeExploreCandidates();
+          function tryNext(i) {
+            if (i >= candidates.length) return Promise.resolve(false);
+            return getJson(candidates[i])
+              .then(function (r) {
+                if (r.status === 401 || r.status === 403) return false;
+                var categories = pickCategoriesFromResponse(r.json);
+                if (!categories) return tryNext(i + 1);
+                return applyRemoteModes(categories);
+              })
+              .catch(function () {
+                return tryNext(i + 1);
+              });
+          }
+          return tryNext(0);
+        }
+
+        function getActiveSequence() {
+          var wf = waveformByKey ? waveformByKey[activeModeKey] : null;
+          var seq = wf && wf.sequence && typeof wf.sequence === 'object' ? wf.sequence : null;
+          var channels = seq && Array.isArray(seq.channels) ? seq.channels : [];
+          var first = channels[0] && typeof channels[0] === 'object' ? channels[0] : null;
+          var values = first && Array.isArray(first.values) ? first.values : null;
+          var tickMs = Number(seq && seq.tickMs ? seq.tickMs : wf && wf.tickMs ? wf.tickMs : 0) || 0;
+          if (!values || values.length === 0) return null;
+          return { values: values, tickMs: tickMs > 0 ? tickMs : 80, loop: seq ? seq.loop !== false : true };
         }
 
         function stopPlay() {
@@ -936,14 +1024,33 @@
           if (!baseURL || !sessionId || !token) return;
           if (playTimer) return;
           isPlaying = true;
-          setStatus(statusSingle, '播放中 mode=' + activeModeKey);
+          var wf = waveformByKey ? waveformByKey[activeModeKey] : null;
+          var displayName = wf && wf.name ? String(wf.name) : activeModeKey;
+          setStatus(statusSingle, '播放中 mode=' + displayName);
           playIdx = 0;
+          var seq = getActiveSequence();
+          var tickMs = seq ? Math.max(40, Math.min(500, Number(seq.tickMs) || 80)) : 160;
           playTimer = setInterval(function () {
-            var v = waveformValue(activeModeKey, playIdx++);
+            var v = 0;
+            if (seq) {
+              if (playIdx >= seq.values.length) {
+                if (seq.loop) playIdx = 0;
+                else {
+                  stopPlay();
+                  renderModes();
+                  return;
+                }
+              }
+              v = Number(seq.values[playIdx++]);
+              if (!Number.isFinite(v)) v = 0;
+              v = Math.max(0, Math.min(100, Math.floor(v)));
+            } else {
+              v = waveformValue(activeModeKey, playIdx++);
+            }
             sendBleStrength(v, statusSingle).then(function (ok) {
-              if (ok) setStatus(statusSingle, '播放中 mode=' + activeModeKey + ' strength=' + v + '%');
+              if (ok) setStatus(statusSingle, '播放中 mode=' + displayName + ' strength=' + v + '%');
             });
-          }, 160);
+          }, tickMs);
         }
 
         function renderModes() {
@@ -953,6 +1060,14 @@
             div.className = 'variantCard' + (m.key === activeModeKey ? ' active' : '');
             var bg = document.createElement('div');
             bg.className = 'variantBg';
+            var wf = waveformByKey ? waveformByKey[m.key] : null;
+            var img = wf && (wf.waveImage || wf.wave_image || wf.image) ? String(wf.waveImage || wf.wave_image || wf.image).trim() : '';
+            if (img) {
+              bg.style.backgroundImage =
+                'linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.5)), url("' + img.replace(/"/g, '\\"') + '")';
+              bg.style.backgroundSize = 'cover';
+              bg.style.backgroundPosition = 'center';
+            }
             var label = document.createElement('div');
             label.className = 'variantLabel';
             var name = document.createElement('div');
@@ -985,6 +1100,11 @@
           });
         }
         renderModes();
+        loadRemoteModes().then(function (updated) {
+          if (!updated) return;
+          if (playTimer) stopPlay();
+          renderModes();
+        });
 
         btnStopPlay.addEventListener('click', function () {
           stopPlay();
