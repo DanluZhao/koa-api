@@ -1507,18 +1507,28 @@ async function postUsageRecords(ctx) {
     return;
   }
 
-  const { duration, mode, toy_id, used_at } = ctx.request.body || {};
+  const { duration, mode, mode_note, modeNote, toy_id, used_at } = ctx.request.body || {};
   if (duration === undefined || !mode) {
     apiFail(ctx, "INVALID_PARAM", "duration and mode are required");
     return;
   }
 
+  const rawNote = mode_note !== undefined ? mode_note : modeNote;
+  const note =
+    rawNote === null || rawNote === undefined
+      ? null
+      : (() => {
+          const s = String(rawNote).trim();
+          if (!s) return null;
+          return s.length > 50 ? s.slice(0, 50) : s;
+        })();
+
   const id = crypto.randomUUID();
   const createdAt = used_at ? new Date(used_at) : new Date();
 
   const inserted = await exec(
-    "INSERT INTO record (id, mode, user_id, toy_id, duration, createdAt) VALUES (?, ?, ?, ?, ?, ?)",
-    [id, mode, auth.userId, toy_id || null, Number(duration), createdAt]
+    "INSERT INTO record (id, mode, mode_note, user_id, toy_id, duration, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [id, mode, note, auth.userId, toy_id || null, Number(duration), createdAt]
   );
   if (!inserted.success) {
     apiFail(ctx, "DB_ERROR", inserted.error, inserted.code ? { code: inserted.code } : undefined);

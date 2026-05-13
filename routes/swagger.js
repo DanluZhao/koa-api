@@ -935,6 +935,7 @@ function buildOpenApi(serverUrl) {
                   properties: {
                     duration: { type: "number" },
                     mode: { type: "string" },
+                    mode_note: { type: "string" },
                     toy_id: { type: "string" },
                     used_at: { type: "string", description: "ISO datetime string" }
                   },
