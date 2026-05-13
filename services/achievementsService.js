@@ -21,11 +21,15 @@ function jsonStringifySafe(value, maxLen) {
   try {
     s = JSON.stringify(value);
   } catch {
-    s = String(value);
+    try {
+      s = JSON.stringify({ _error: "stringify_failed", _raw: String(value) });
+    } catch {
+      s = '{"_error":"stringify_failed"}';
+    }
   }
   if (!Number.isFinite(Number(maxLen)) || maxLen <= 0) return s;
   if (s.length <= maxLen) return s;
-  return s.slice(0, Math.floor(maxLen));
+  return JSON.stringify({ _error: "payload_too_large", _originalLength: s.length });
 }
 
 function toInt(value, fallback) {
