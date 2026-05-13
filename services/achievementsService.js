@@ -339,31 +339,60 @@ async function awardAchievementIdempotent({ userId, code, context, reason }) {
   }
 }
 
+function normalizeConditionType(value) {
+  const s = value === null || value === undefined ? "" : String(value).trim();
+  if (!s) return "";
+  const withUnderscore = s.replace(/([a-z0-9])([A-Z])/g, "$1_$2");
+  return withUnderscore.replace(/[-\s]+/g, "_").toLowerCase();
+}
+
+function extractParamValue(conditionParams, rawString, keys) {
+  const keyList = Array.isArray(keys) ? keys : [keys];
+  if (conditionParams && typeof conditionParams === "object") {
+    for (const k of keyList) {
+      const v = conditionParams[k];
+      if (v !== undefined && v !== null) return v;
+    }
+  }
+
+  const s = rawString === null || rawString === undefined ? "" : String(rawString);
+  if (!s) return null;
+  for (const k of keyList) {
+    const re = new RegExp(`"${k}"\\s*:\\s*"([^"]+)"|${k}\\s*[:=]\\s*'([^']+)'|${k}\\s*[:=]\\s*([^,}\\s]+)`, "i");
+    const m = re.exec(s);
+    if (!m) continue;
+    return m[1] || m[2] || m[3] || null;
+  }
+  return null;
+}
+
 async function listActiveAchievementsByConditionTypes(conditionTypes) {
   const schema = await resolveSchema();
   const a = schema.achievements;
-  const types = Array.isArray(conditionTypes) ? conditionTypes.map((t) => String(t)) : [];
+  const types = Array.isArray(conditionTypes) ? conditionTypes.map((t) => normalizeConditionType(t)) : [];
   if (types.length === 0) return [];
 
-  const placeholders = types.map(() => "?").join(", ");
   const rows = await db.query(
     `SELECT
       ${qIdent(a.code)} AS code,
       ${qIdent(a.conditionType)} AS conditionType,
       ${qIdent(a.conditionParams)} AS conditionParams
      FROM ${qIdent(a.table)}
-     WHERE ${qIdent(a.isActive)} = 1 AND ${qIdent(a.conditionType)} IN (${placeholders})`,
-    types
+     WHERE ${qIdent(a.isActive)} = 1`,
+    []
   );
-  return (rows || []).map((r) => {
-    const parsed = safeJsonParse(r.conditionParams);
-    return {
-      code: String(r.code),
-      conditionType: String(r.conditionType),
-      conditionParams: parsed.ok ? parsed.value : null,
-      conditionParamsRaw: r.conditionParams
-    };
-  });
+  return (rows || [])
+    .map((r) => {
+      const parsed = safeJsonParse(r.conditionParams);
+      return {
+        code: String(r.code),
+        conditionType: String(r.conditionType),
+        conditionTypeNormalized: normalizeConditionType(r.conditionType),
+        conditionParams: parsed.ok ? parsed.value : null,
+        conditionParamsRaw: r.conditionParams
+      };
+    })
+    .filter((a) => types.includes(a.conditionTypeNormalized));
 }
 
 async function hasUserAchievement({ userId, code }) {
@@ -658,9 +687,12 @@ async function recordAndEvaluateAchievementEvent({ userId, eventType, dedupeKey,
   }
 
   const achievements = await listActiveAchievementsByConditionTypes(["event_first", "event_distinct_count"]);
+  const eventTypeNorm = String(eventType || "").trim().toLowerCase();
   const matched = achievements.filter((a) => {
-    const p = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : {};
-    return p && String(p.eventType || "") === String(eventType);
+    const raw = a.conditionParamsRaw;
+    const p = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : null;
+    const configured = extractParamValue(p, raw, ["eventType", "event_type", "type"]);
+    return configured !== null && String(configured).trim().toLowerCase() === eventTypeNorm;
   });
 
   const awardedCodes = [];
@@ -668,8 +700,10 @@ async function recordAndEvaluateAchievementEvent({ userId, eventType, dedupeKey,
   for (const a of matched) {
     const already = await hasUserAchievement({ userId, code: a.code });
     if (already) continue;
-    const p = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : {};
-    if (a.conditionType === "event_first") {
+    const raw = a.conditionParamsRaw;
+    const p = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : null;
+    const typeNorm = normalizeConditionType(a.conditionType);
+    if (typeNorm === "event_first") {
       const rows = await db.query(
         `SELECT COUNT(*) AS total FROM ${qIdent(schema.achievementEvents.table)} WHERE ${qIdent(schema.achievementEvents.userId)} = ? AND ${qIdent(
           schema.achievementEvents.eventType
@@ -678,17 +712,21 @@ async function recordAndEvaluateAchievementEvent({ userId, eventType, dedupeKey,
       );
       const total = Number(rows && rows[0] ? rows[0].total : 0) || 0;
       if (total !== 1) continue;
-    } else if (a.conditionType === "event_distinct_count") {
-      const targetCount = Math.max(1, toInt(p.targetCount, 1));
+    } else if (typeNorm === "event_distinct_count") {
+      const targetCountRaw = extractParamValue(p, raw, ["targetCount", "target_count", "count"]);
+      const targetCount = Math.max(1, toInt(targetCountRaw, 1));
       const dk = schema.achievementEvents.dedupeKey;
-      const where = dk
-        ? `AND ${qIdent(dk)} IS NOT NULL AND ${qIdent(dk)} <> ''`
-        : "";
-      const countExpr = dk ? `COUNT(DISTINCT ${qIdent(dk)})` : "COUNT(*)";
+      const idCol = schema.achievementEvents.id;
+      let countExpr = "COUNT(*)";
+      if (dk && idCol) {
+        countExpr = `COUNT(DISTINCT COALESCE(NULLIF(${qIdent(dk)}, ''), ${qIdent(idCol)}))`;
+      } else if (dk) {
+        countExpr = "COUNT(*)";
+      }
       const rows = await db.query(
         `SELECT ${countExpr} AS total FROM ${qIdent(schema.achievementEvents.table)} WHERE ${qIdent(schema.achievementEvents.userId)} = ? AND ${qIdent(
           schema.achievementEvents.eventType
-        )} = ? ${where}`,
+        )} = ?`,
         [userId, String(eventType)]
       );
       const total = Number(rows && rows[0] ? rows[0].total : 0) || 0;
