@@ -117,9 +117,9 @@ async function resolveSchema() {
         id: pickColumn(evCols, ["id"]),
         userId: pickColumn(evCols, ["userId", "userid", "user_id"]),
         eventType: pickColumn(evCols, ["eventType", "event_type"]),
-        achievementCode: pickColumn(evCols, ["achievementCode", "achievement_code", "achievementcode"]),
+        achievementCode: pickColumn(evCols, ["achievement_code","achievementCode",  "achievementcode"]),
         dedupeKey: pickColumn(evCols, ["dedupeKey", "dedupe_key"]),
-        payload: pickColumn(evCols, ["payload"]),
+        payload: pickColumn(evCols, ["payload_json","payload"]),
         createdAt: pickColumn(evCols, ["createdAt", "created_at"])
       };
 
