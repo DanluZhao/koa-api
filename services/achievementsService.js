@@ -70,26 +70,73 @@ function qIdent(id) {
   return "`" + String(id).replace(/`/g, "``") + "`";
 }
 
-async function getTableColumns(tableName) {
+function toColumnInfoMap(list) {
+  const map = new Map();
+  for (const r of list || []) {
+    map.set(String(r.name), r);
+  }
+  return map;
+}
+
+function isNumericDataType(dataType) {
+  const t = String(dataType || "").toLowerCase();
+  return ["tinyint", "smallint", "mediumint", "int", "bigint", "decimal", "numeric", "float", "double"].includes(t);
+}
+
+function shouldProvideIdForInsert(tableObj) {
+  const idCol = tableObj && tableObj.id ? String(tableObj.id) : null;
+  if (!idCol) return false;
+  const info = tableObj && tableObj._info ? tableObj._info.get(idCol) : null;
+  if (!info) return true;
+  const extra = String(info.extra || "").toLowerCase();
+  if (extra.includes("auto_increment")) return false;
+  if (info.columnDefault !== null && info.columnDefault !== undefined) return false;
+  if (String(info.isNullable || "").toUpperCase() === "YES") return false;
+  if (isNumericDataType(info.dataType)) return false;
+  return true;
+}
+
+async function getTableColumnInfo(tableName) {
   const rows = await db.query(
-    "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+    `SELECT
+      COLUMN_NAME AS name,
+      DATA_TYPE AS dataType,
+      COLUMN_TYPE AS columnType,
+      IS_NULLABLE AS isNullable,
+      COLUMN_DEFAULT AS columnDefault,
+      EXTRA AS extra
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
     [tableName]
   );
-  return (rows || []).map((r) => String(r.name));
+  return (rows || []).map((r) => ({
+    name: String(r.name),
+    dataType: r.dataType === null || r.dataType === undefined ? null : String(r.dataType),
+    columnType: r.columnType === null || r.columnType === undefined ? null : String(r.columnType),
+    isNullable: r.isNullable === null || r.isNullable === undefined ? null : String(r.isNullable),
+    columnDefault: r.columnDefault,
+    extra: r.extra === null || r.extra === undefined ? null : String(r.extra)
+  }));
 }
 
 async function resolveSchema() {
   if (!schemaPromise) {
     schemaPromise = (async () => {
-      const [achCols, uaCols, evCols, progCols] = await Promise.all([
-        getTableColumns("achievements"),
-        getTableColumns("user_achievements"),
-        getTableColumns("achievement_events"),
-        getTableColumns("user_achievement_progress")
+      const [achInfo, uaInfo, evInfo, progInfo] = await Promise.all([
+        getTableColumnInfo("achievements"),
+        getTableColumnInfo("user_achievements"),
+        getTableColumnInfo("achievement_events"),
+        getTableColumnInfo("user_achievement_progress")
       ]);
+
+      const achCols = achInfo.map((x) => x.name);
+      const uaCols = uaInfo.map((x) => x.name);
+      const evCols = evInfo.map((x) => x.name);
+      const progCols = progInfo.map((x) => x.name);
 
       const achievements = {
         table: "achievements",
+        _info: toColumnInfoMap(achInfo),
         id: pickColumn(achCols, ["id"]),
         code: pickColumn(achCols, ["code"]),
         name: pickColumn(achCols, ["name"]),
@@ -104,6 +151,7 @@ async function resolveSchema() {
 
       const userAchievements = {
         table: "user_achievements",
+        _info: toColumnInfoMap(uaInfo),
         id: pickColumn(uaCols, ["id"]),
         userId: pickColumn(uaCols, ["userId", "userid", "user_id"]),
         achievementCode: pickColumn(uaCols, ["achievementCode", "achievement_code", "achievementcode", "code"]),
@@ -114,6 +162,7 @@ async function resolveSchema() {
 
       const achievementEvents = {
         table: "achievement_events",
+        _info: toColumnInfoMap(evInfo),
         id: pickColumn(evCols, ["id"]),
         userId: pickColumn(evCols, ["userId", "userid", "user_id"]),
         eventType: pickColumn(evCols, ["eventType", "event_type"]),
@@ -125,6 +174,7 @@ async function resolveSchema() {
 
       const achievementProgress = {
         table: "user_achievement_progress",
+        _info: toColumnInfoMap(progInfo),
         id: pickColumn(progCols, ["id"]),
         userId: pickColumn(progCols, ["userId", "userid", "user_id"]),
         achievementCode: pickColumn(progCols, ["achievementCode", "achievement_code", "achievementcode"]),
@@ -236,7 +286,7 @@ async function insertAchievementEvent({ conn, userId, eventType, achievementCode
 
   const cols = [];
   const vals = [];
-  if (ev.id) {
+  if (ev.id && shouldProvideIdForInsert(ev)) {
     cols.push(ev.id);
     vals.push(id);
   }
@@ -290,7 +340,7 @@ async function awardAchievementIdempotent({ userId, code, context, reason }) {
     const id = crypto.randomUUID();
     const cols = [];
     const vals = [];
-    if (ua.id) {
+    if (ua.id && shouldProvideIdForInsert(ua)) {
       cols.push(ua.id);
       vals.push(id);
     }
@@ -495,7 +545,7 @@ async function updateStreakProgress({ userId, achievementCode, localDate, lookba
     const id = crypto.randomUUID();
     const upCols = [];
     const upVals = [];
-    if (prog.id) {
+    if (prog.id && shouldProvideIdForInsert(prog)) {
       upCols.push(prog.id);
       upVals.push(id);
     }
@@ -590,8 +640,12 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
     const already = await hasUserAchievement({ userId, code });
     if (already) continue;
 
-    const params = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : {};
-    const minValidDurationSec = Math.max(0, toInt(params.minValidDurationSec, 30));
+    const raw = a.conditionParamsRaw;
+    const paramsObj = a.conditionParams && typeof a.conditionParams === "object" ? a.conditionParams : null;
+    const typeNorm = normalizeConditionType(a.conditionType);
+
+    const minValidDurationSecRaw = extractParamValue(paramsObj, raw, ["minValidDurationSec", "min_valid_duration_sec", "minDurationSec", "min_duration_sec"]);
+    const minValidDurationSec = Math.max(0, toInt(minValidDurationSecRaw, 30));
     const durOk = Number(durationSec) >= minValidDurationSec;
     const createdAt = Number.isFinite(Number(usedAtMs)) ? new Date(Number(usedAtMs)) : new Date();
     const hour = createdAt.getHours();
@@ -601,29 +655,35 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
 
     let shouldAward = false;
 
-    if (a.conditionType === "usage_record_first") {
+    if (typeNorm === "usage_record_first") {
       if (durOk) {
         const total = await countUserRecords({ userId, minDurationSec: minValidDurationSec });
         shouldAward = total === 1;
       }
-    } else if (a.conditionType === "usage_record_total_count") {
-      const targetCount = Math.max(1, toInt(params.targetCount, 10));
+    } else if (typeNorm === "usage_record_total_count") {
+      const targetCountRaw = extractParamValue(paramsObj, raw, ["targetCount", "target_count", "count"]);
+      const targetCount = Math.max(1, toInt(targetCountRaw, 10));
       if (durOk) {
         const total = await countUserRecords({ userId, minDurationSec: minValidDurationSec });
         shouldAward = total >= targetCount;
       }
-    } else if (a.conditionType === "usage_record_first_min_duration") {
-      const minDurationSec = Math.max(1, toInt(params.minDurationSec, 1800));
+    } else if (typeNorm === "usage_record_first_min_duration") {
+      const minDurationSecRaw = extractParamValue(paramsObj, raw, ["minDurationSec", "min_duration_sec", "minSec", "min_sec"]);
+      const minDurationSec = Math.max(1, toInt(minDurationSecRaw, 1800));
       const total = await countUserRecords({ userId, minDurationSec });
       shouldAward = total >= 1;
-    } else if (a.conditionType === "usage_record_first_in_time_window") {
-      const weekdays = Array.isArray(params.weekdays) ? params.weekdays : [1, 2, 3, 4, 5];
+    } else if (typeNorm === "usage_record_first_in_time_window") {
+      const weekdaysRaw = extractParamValue(paramsObj, raw, ["weekdays", "weekdayList", "weekday_list"]);
+      const weekdaysParsed = typeof weekdaysRaw === "string" ? safeJsonParse(weekdaysRaw) : { ok: false, value: null };
+      const weekdays = Array.isArray(paramsObj && paramsObj.weekdays) ? paramsObj.weekdays : weekdaysParsed.ok && Array.isArray(weekdaysParsed.value) ? weekdaysParsed.value : [1, 2, 3, 4, 5];
       const weekdayList = weekdays
         .map((w) => toInt(w, -1))
         .map((w) => (w >= 1 && w <= 7 ? (w + 5) % 7 : w))
         .filter((w) => w >= 0 && w <= 6);
-      const startHour = toInt(params.startHour, 9);
-      const endHour = toInt(params.endHour, 17);
+      const startHourRaw = extractParamValue(paramsObj, raw, ["startHour", "start_hour"]);
+      const endHourRaw = extractParamValue(paramsObj, raw, ["endHour", "end_hour"]);
+      const startHour = toInt(startHourRaw, 9);
+      const endHour = toInt(endHourRaw, 17);
 
       const inWeekday = weekdayList.includes(weekday0);
       const inHour = endHour > startHour ? hour >= startHour && hour < endHour : endHour < startHour ? hour >= startHour || hour < endHour : true;
@@ -632,16 +692,20 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
         const total = await countUserRecordsInWindow({ userId, minDurationSec: minValidDurationSec, weekdayList, startHour, endHour });
         shouldAward = total === 1;
       }
-    } else if (a.conditionType === "usage_record_first_on_date") {
-      const targetMonth = toInt(params.month, 2);
-      const targetDay = toInt(params.day, 14);
+    } else if (typeNorm === "usage_record_first_on_date") {
+      const targetMonthRaw = extractParamValue(paramsObj, raw, ["month"]);
+      const targetDayRaw = extractParamValue(paramsObj, raw, ["day"]);
+      const targetMonth = toInt(targetMonthRaw, 2);
+      const targetDay = toInt(targetDayRaw, 14);
       if (durOk && month === targetMonth && day === targetDay) {
         const total = await countUserRecordsOnMonthDay({ userId, minDurationSec: minValidDurationSec, month: targetMonth, day: targetDay });
         shouldAward = total === 1;
       }
-    } else if (a.conditionType === "usage_record_streak") {
-      const days = Math.max(2, toInt(params.days, 5));
-      const lookbackDays = Math.max(days, toInt(params.lookbackDays, 30));
+    } else if (typeNorm === "usage_record_streak") {
+      const daysRaw = extractParamValue(paramsObj, raw, ["days"]);
+      const lookbackDaysRaw = extractParamValue(paramsObj, raw, ["lookbackDays", "lookback_days"]);
+      const days = Math.max(2, toInt(daysRaw, 5));
+      const lookbackDays = Math.max(days, toInt(lookbackDaysRaw, 30));
       if (durOk && localDate) {
         const progress = await updateStreakProgress({ userId, achievementCode: code, localDate, lookbackDays });
         shouldAward = progress.streakDays >= days;
@@ -650,13 +714,35 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
 
     if (!shouldAward) continue;
 
-    const res = await awardAchievementIdempotent({
-      userId,
-      code,
-      context: { trigger: "usage_record_created", usageRecord: payload },
-      reason: { type: "usage_record_created", recordId: id || null }
-    });
-    if (res && res.ok && res.awarded) awardedCodes.push(code);
+    try {
+      const res = await awardAchievementIdempotent({
+        userId,
+        code,
+        context: { trigger: "usage_record_created", usageRecord: payload },
+        reason: { type: "usage_record_created", recordId: id || null }
+      });
+      if (res && res.ok && res.awarded) awardedCodes.push(code);
+    } catch (err) {
+      const conn2 = await db.pool.getConnection();
+      try {
+        await conn2.beginTransaction();
+        await insertAchievementEvent({
+          conn: conn2,
+          userId,
+          eventType: "achievement_award_error",
+          achievementCode: code,
+          dedupeKey: id || null,
+          payload: { code, message: err?.message || String(err) }
+        });
+        await conn2.commit();
+      } catch {
+        try {
+          await conn2.rollback();
+        } catch {}
+      } finally {
+        conn2.release();
+      }
+    }
   }
 
   return { awardedCodes };
