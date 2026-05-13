@@ -88,11 +88,12 @@ function shouldProvideIdForInsert(tableObj) {
   if (!idCol) return false;
   const info = tableObj && tableObj._info ? tableObj._info.get(idCol) : null;
   if (!info) return true;
+  
   const extra = String(info.extra || "").toLowerCase();
   if (extra.includes("auto_increment")) return false;
-  if (info.columnDefault !== null && info.columnDefault !== undefined) return false;
-  if (String(info.isNullable || "").toUpperCase() === "YES") return false;
+  
   if (isNumericDataType(info.dataType)) return false;
+  
   return true;
 }
 
@@ -613,7 +614,8 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
       payload
     });
     await conn.commit();
-  } catch {
+  } catch (err) {
+    console.error("[Achievements] Error inserting usage_record_created event:", err);
     try {
       await conn.rollback();
     } catch {}
@@ -723,6 +725,7 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
       });
       if (res && res.ok && res.awarded) awardedCodes.push(code);
     } catch (err) {
+      console.error(`[Achievements] Error awarding achievement ${code}:`, err);
       const conn2 = await db.pool.getConnection();
       try {
         await conn2.beginTransaction();
@@ -735,7 +738,8 @@ async function evaluateAchievementsAfterUsageRecord({ userId, record }) {
           payload: { code, message: err?.message || String(err) }
         });
         await conn2.commit();
-      } catch {
+      } catch (err2) {
+        console.error(`[Achievements] Error logging achievement_award_error for ${code}:`, err2);
         try {
           await conn2.rollback();
         } catch {}
@@ -764,7 +768,8 @@ async function recordAndEvaluateAchievementEvent({ userId, eventType, dedupeKey,
     });
     inserted = !!r.inserted;
     await conn.commit();
-  } catch {
+  } catch (err) {
+    console.error("[Achievements] Error inserting achievement event in recordAndEvaluate:", err);
     try {
       await conn.rollback();
     } catch {}

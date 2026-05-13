@@ -1547,7 +1547,9 @@ async function postUsageRecords(ctx) {
         toyId: toy_id || null
       }
     });
-  } catch {}
+  } catch (err) {
+    console.error("[Achievements] Error in postUsageRecords evaluation:", err);
+  }
 
   apiOk(ctx, id);
 }
