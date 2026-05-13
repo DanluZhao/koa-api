@@ -100,6 +100,7 @@ appRouter.post("/usage/records", business.postUsageRecords);
 appRouter.get("/achievements/catalog", business.getAchievementsCatalog);
 appRouter.get("/achievements/my-codes", business.getAchievementsMyCodes);
 appRouter.post("/achievements/award", business.postAchievementsAward);
+appRouter.post("/achievements/events", business.postAchievementsEvents);
 
 appRouter.get("/waveforms/preset", business.getWaveformsPreset);
 appRouter.get("/waveforms/custom", business.getWaveformsCustom);

@@ -6,6 +6,14 @@ const { loadSchemasFromDatabase } = require("../models/schema");
 const { resolveBleDeviceProfile } = require("../services/bleDeviceProfileService");
 const { listPresetWaveforms, getModeExplore } = require("../services/modeExploreService");
 const { createWaveformCustom, updateWaveformCustom, listWaveformsCustom } = require("../services/waveformsCustomService");
+const {
+  listAchievementsCatalog,
+  listUserAchievementCodes,
+  awardAchievementIdempotent,
+  evaluateAchievementsAfterUsageRecord,
+  recordAndEvaluateAchievementEvent,
+  toLocalDateString
+} = require("../services/achievementsService");
 
 function apiOk(ctx, data, pagination) {
   ctx.status = 200;
@@ -1517,6 +1525,20 @@ async function postUsageRecords(ctx) {
     return;
   }
 
+  try {
+    await evaluateAchievementsAfterUsageRecord({
+      userId: auth.userId,
+      record: {
+        id,
+        durationSec: Number(duration) || 0,
+        usedAtMs: createdAt.getTime(),
+        localDate: toLocalDateString(createdAt),
+        mode: mode || null,
+        toyId: toy_id || null
+      }
+    });
+  } catch {}
+
   apiOk(ctx, id);
 }
 
@@ -1528,17 +1550,12 @@ async function getAchievementsCatalog(ctx) {
     return;
   }
 
-  const listRes = await queryAll("SELECT * FROM achievements ORDER BY createdAt DESC LIMIT ? OFFSET ?", [limit, offset]);
-  if (!listRes.success) {
-    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
-    return;
+  try {
+    const items = await listAchievementsCatalog({ limit, offset });
+    apiOk(ctx, items, buildPagination({ total: totalRes.data.total, limit, offset }));
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-
-  apiOk(
-    ctx,
-    listRes.data.map((r) => ({ ...r, _id: r.id })),
-    buildPagination({ total: totalRes.data.total, limit, offset })
-  );
 }
 
 async function getAchievementsMyCodes(ctx) {
@@ -1548,16 +1565,12 @@ async function getAchievementsMyCodes(ctx) {
     return;
   }
 
-  const listRes = await queryAll(
-    "SELECT achievement_code FROM user_achievements WHERE userid = ? ORDER BY earnedAt DESC",
-    [auth.userId]
-  );
-  if (!listRes.success) {
-    apiFail(ctx, "DB_ERROR", listRes.error, listRes.code ? { code: listRes.code } : undefined);
-    return;
+  try {
+    const codes = await listUserAchievementCodes({ userId: auth.userId });
+    apiOk(ctx, codes);
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-
-  apiOk(ctx, listRes.data.map((r) => r.achievement_code));
 }
 
 async function postAchievementsAward(ctx) {
@@ -1567,37 +1580,54 @@ async function postAchievementsAward(ctx) {
     return;
   }
 
-  const { code } = ctx.request.body || {};
+  const { code, context } = ctx.request.body || {};
   if (!code) {
     apiFail(ctx, "INVALID_PARAM", "code is required");
     return;
   }
 
-  const existing = await queryOne(
-    "SELECT id FROM user_achievements WHERE userid = ? AND achievement_code = ? LIMIT 1",
-    [auth.userId, code]
-  );
-  if (!existing.success) {
-    apiFail(ctx, "DB_ERROR", existing.error, existing.code ? { code: existing.code } : undefined);
+  try {
+    const res = await awardAchievementIdempotent({
+      userId: auth.userId,
+      code: String(code),
+      context: context && typeof context === "object" ? context : context !== undefined ? { value: context } : null,
+      reason: { type: "manual_award_request" }
+    });
+    if (!res.ok) {
+      apiFail(ctx, res.error.code, res.error.message);
+      return;
+    }
+    apiOk(ctx, { awarded: !!res.awarded });
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
+  }
+}
+
+async function postAchievementsEvents(ctx) {
+  const auth = requireUser(ctx);
+  if (!auth.ok) {
+    apiFail(ctx, auth.error.code, auth.error.message);
     return;
   }
 
-  if (existing.data) {
-    apiOk(ctx, { awarded: false });
+  const { eventType, dedupeKey, payload } = ctx.request.body || {};
+  const eventTypeStr = String(eventType || "").trim();
+  if (!eventTypeStr) {
+    apiFail(ctx, "INVALID_PARAM", "eventType is required");
     return;
   }
 
-  const id = crypto.randomUUID();
-  const inserted = await exec(
-    "INSERT INTO user_achievements (id, achievement_code, userid, createdAt, earnedAt) VALUES (?, ?, ?, NOW(), NOW())",
-    [id, code, auth.userId]
-  );
-  if (!inserted.success) {
-    apiFail(ctx, "DB_ERROR", inserted.error, inserted.code ? { code: inserted.code } : undefined);
-    return;
+  try {
+    const res = await recordAndEvaluateAchievementEvent({
+      userId: auth.userId,
+      eventType: eventTypeStr,
+      dedupeKey: dedupeKey ? String(dedupeKey) : null,
+      payload: payload && typeof payload === "object" ? payload : payload !== undefined ? { value: payload } : null
+    });
+    apiOk(ctx, { inserted: !!res.inserted, awardedCodes: res.awardedCodes || [] });
+  } catch (err) {
+    apiFail(ctx, "DB_ERROR", err?.message || String(err));
   }
-
-  apiOk(ctx, { awarded: true });
 }
 
 async function getWaveformsPreset(ctx) {
@@ -1948,6 +1978,7 @@ module.exports = {
   getAchievementsCatalog,
   getAchievementsMyCodes,
   postAchievementsAward,
+  postAchievementsEvents,
   getWaveformsPreset,
   getWaveformsCustom,
   postWaveformsCustom,

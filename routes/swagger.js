@@ -1021,6 +1021,48 @@ function buildOpenApi(serverUrl) {
           }
         }
       },
+      "/app/achievements/events": {
+        post: {
+          summary: "Report achievement event and let server evaluate awards",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    eventType: {
+                      type: "string",
+                      enum: [
+                        "kegel_start",
+                        "meditation_play",
+                        "pattern_play_start",
+                        "remote_sync_connected",
+                        "oil_dispense",
+                        "usage_record_created"
+                      ]
+                    },
+                    dedupeKey: { type: "string" },
+                    payload: { $ref: "#/components/schemas/AnyObject" }
+                  },
+                  required: ["eventType"]
+                }
+              }
+            }
+          },
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
       "/app/waveforms/preset": {
         get: {
           summary: "List preset waveforms (playable sequence included)",
