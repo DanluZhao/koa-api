@@ -34,6 +34,7 @@ legacyRouter.get("/kegels", business.getKegels);
 
 legacyRouter.get("/usage/summary", authRequired(), business.getUsageSummary);
 legacyRouter.get("/usage/records", authRequired(), business.getUsageRecords);
+legacyRouter.get("/usage/stats", authRequired(), business.getUsageStats);
 legacyRouter.post("/usage/records", authRequired(), business.postUsageRecords);
 
 legacyRouter.get("/achievements/catalog", business.getAchievementsCatalog);
@@ -95,6 +96,7 @@ appRouter.get("/kegels", business.getKegels);
 
 appRouter.get("/usage/summary", business.getUsageSummary);
 appRouter.get("/usage/records", business.getUsageRecords);
+appRouter.get("/usage/stats", business.getUsageStats);
 appRouter.post("/usage/records", business.postUsageRecords);
 
 appRouter.get("/achievements/catalog", business.getAchievementsCatalog);

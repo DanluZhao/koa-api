@@ -904,6 +904,32 @@ function buildOpenApi(serverUrl) {
           }
         }
       },
+      "/app/usage/stats": {
+        get: {
+          summary: "Get current user usage stats grouped by week/month (includes waveform counts)",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "granularity",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: ["week", "month"], default: "week" }
+            },
+            { name: "limit", in: "query", required: false, schema: { type: "integer", default: 12 } },
+            { name: "offset", in: "query", required: false, schema: { type: "integer", default: 0 } }
+          ],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
       "/app/usage/records": {
         get: {
           summary: "List current user usage records",
@@ -1669,6 +1695,34 @@ function buildOpenApi(serverUrl) {
           deprecated: true,
           summary: "Legacy: Get current user usage summary",
           security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ApiResponseAny" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/usage/stats": {
+        get: {
+          tags: ["Legacy"],
+          deprecated: true,
+          summary: "Legacy: Get current user usage stats grouped by week/month (includes waveform counts)",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "granularity",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: ["week", "month"], default: "week" }
+            },
+            { name: "limit", in: "query", required: false, schema: { type: "integer", default: 12 } },
+            { name: "offset", in: "query", required: false, schema: { type: "integer", default: 0 } }
+          ],
           responses: {
             200: {
               description: "OK",

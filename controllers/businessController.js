@@ -1500,6 +1500,74 @@ async function getUsageRecords(ctx) {
   );
 }
 
+async function getUsageStats(ctx) {
+  const auth = requireUser(ctx);
+  if (!auth.ok) {
+    apiFail(ctx, auth.error.code, auth.error.message);
+    return;
+  }
+
+  const granularityRaw = String(ctx.query?.granularity || ctx.query?.period || "week").trim().toLowerCase();
+  const granularity = granularityRaw === "month" || granularityRaw === "monthly" ? "month" : "week";
+
+  const { limit, offset } = parseLimitOffset(ctx.query, { limit: 12 });
+  const limitSafe = Math.max(1, Math.min(60, Number(limit) || 12));
+  const offsetSafe = Math.max(0, Number(offset) || 0);
+
+  const bucketExpr = granularity === "month" ? "DATE_FORMAT(createdAt, '%Y-%m')" : "YEARWEEK(createdAt, 3)";
+
+  const totalRes = await queryAll(
+    `SELECT ${bucketExpr} AS bucket, COUNT(*) AS total
+     FROM record
+     WHERE user_id = ?
+     GROUP BY bucket
+     ORDER BY bucket DESC
+     LIMIT ? OFFSET ?`,
+    [auth.userId, limitSafe, offsetSafe]
+  );
+  if (!totalRes.success) {
+    apiFail(ctx, "DB_ERROR", totalRes.error, totalRes.code ? { code: totalRes.code } : undefined);
+    return;
+  }
+
+  const totals = totalRes.data || [];
+  const bucketKeys = totals.map((r) => r.bucket).filter((x) => x !== null && x !== undefined);
+  const buckets = totals.map((r) => ({ bucket: r.bucket, totalCount: Number(r.total) || 0, waveforms: [] }));
+  const bucketMap = new Map(buckets.map((b) => [b.bucket, b]));
+
+  if (bucketKeys.length > 0) {
+    const waveformKeyExpr =
+      "CASE " +
+      "WHEN mode_note IS NULL OR mode_note = '' THEN NULL " +
+      "WHEN INSTR(mode_note, ':') > 0 THEN SUBSTRING_INDEX(mode_note, ':', -1) " +
+      "ELSE mode_note " +
+      "END";
+
+    const inPlaceholders = bucketKeys.map(() => "?").join(", ");
+    const waveformRes = await queryAll(
+      `SELECT ${bucketExpr} AS bucket, ${waveformKeyExpr} AS waveformKey, COUNT(*) AS total
+       FROM record
+       WHERE user_id = ? AND mode = 'waveform' AND mode_note IS NOT NULL AND mode_note <> ''
+         AND ${bucketExpr} IN (${inPlaceholders})
+       GROUP BY bucket, waveformKey
+       ORDER BY bucket DESC, total DESC`,
+      [auth.userId, ...bucketKeys]
+    );
+    if (!waveformRes.success) {
+      apiFail(ctx, "DB_ERROR", waveformRes.error, waveformRes.code ? { code: waveformRes.code } : undefined);
+      return;
+    }
+
+    for (const row of waveformRes.data || []) {
+      const b = bucketMap.get(row.bucket);
+      if (!b) continue;
+      b.waveforms.push({ waveformKey: row.waveformKey, count: Number(row.total) || 0 });
+    }
+  }
+
+  apiOk(ctx, { granularity, buckets });
+}
+
 async function postUsageRecords(ctx) {
   const auth = requireUser(ctx);
   if (!auth.ok) {
@@ -1986,6 +2054,7 @@ module.exports = {
   getKegels,
   getUsageSummary,
   getUsageRecords,
+  getUsageStats,
   postUsageRecords,
   getAchievementsCatalog,
   getAchievementsMyCodes,
